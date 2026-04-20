@@ -1,0 +1,660 @@
+import 'package:flutter/cupertino.dart';
+import 'flutter_slidable_base.dart';
+
+/// 滑动 Cell 的控制器。
+/// Controller for opening/closing slidable cells by [ValueKey].
+class SlideableCellController {
+  _SlideableCellControllerEntry? _findEntry(ValueKey key) {
+    final direct = _entries[key];
+    if (direct != null) {
+      return direct;
+    }
+    for (final item in _entries.entries) {
+      if (item.key.value == key.value) {
+        return item.value;
+      }
+    }
+    return null;
+  }
+
+  SlideableCellStatus _findStatus(ValueKey key) {
+    final direct = _status[key];
+    if (direct != null) {
+      return direct;
+    }
+    for (final item in _status.entries) {
+      if (item.key.value == key.value) {
+        return item.value;
+      }
+    }
+    return SlideableCellStatus.closed;
+  }
+
+  final Map<ValueKey, _SlideableCellControllerEntry> _entries = <ValueKey, _SlideableCellControllerEntry>{};
+  final Map<ValueKey, SlideableCellStatus> _status = <ValueKey, SlideableCellStatus>{};
+
+  /// 注册一个可控制的 Cell 实例。
+  /// Registers a cell entry for controller operations.
+  void _register(ValueKey key,
+      _SlideableCellControllerEntry entry,
+      SlideableCellStatus initialStatus,) {
+    _entries[key] = entry;
+    _status[key] = initialStatus;
+  }
+
+  /// 仅在 entry 与当前注册项一致时移除，避免误删。
+  /// Unregister only when the entry matches current mapping.
+  void _unregister(ValueKey key, _SlideableCellControllerEntry entry) {
+    final current = _entries[key];
+    if (identical(current, entry)) {
+      _entries.remove(key);
+    }
+  }
+
+  /// 更新指定 key 对应 item 的状态缓存。
+  /// Updates cached open/close status for an item key.
+  void _updateStatus(ValueKey key, SlideableCellStatus status) {
+    _status[key] = status;
+  }
+
+  /// 获取指定 key 的当前状态，默认关闭。
+  /// Returns current status for key, default is closed.
+  SlideableCellStatus statusOf(ValueKey key) {
+    return _findStatus(key);
+  }
+
+  /// 是否处于任一打开状态（左开或右开）。
+  /// Whether the cell is currently opened on either side.
+  bool isOpen(ValueKey key) {
+    final status = _status[key];
+    return status == SlideableCellStatus.leadingOpen || status == SlideableCellStatus.trailingOpen;
+  }
+
+  /// 全量状态快照（只读）。
+  /// Read-only snapshot for all item statuses.
+  Map<ValueKey, SlideableCellStatus> get statuses {
+    return Map<ValueKey, SlideableCellStatus>.unmodifiable(_status);
+  }
+
+  ///打开左方
+  Future<void> openLeading(ValueKey key) async {
+    await _findEntry(key)?.openLeading?.call();
+  }
+
+  ///打开右方
+  Future<void> openTrailing(ValueKey key) async {
+    await _findEntry(key)?.openTrailing?.call();
+  }
+
+  ///关闭Cell
+  Future<void> closeCell(ValueKey key) async {
+    await _findEntry(key)?.close?.call();
+  }
+
+  ///关闭所有的item
+  Future<void> closeAllCells() async {
+    final futures = _entries.values
+        .map((entry) => entry.close)
+        .whereType<Future<void> Function()>()
+        .map((fn) => fn())
+        .toList(growable: false);
+    await Future.wait<void>(futures);
+  }
+}
+
+/// 可滑动的 Cell 组件。
+/// A slidable cell widget with leading/trailing actions.
+class SlideableCellView extends StatefulWidget {
+  /// 展开模式。
+  /// Expansion mode for action layout.
+  final SlideableCellExpandMode expandMode;
+
+  /// 控制器，用于外部按 key 控制开关。
+  /// External controller for open/close by key.
+  final SlideableCellController controller;
+
+  /// 从关闭态到打开态的阈值比例。
+  /// Open threshold ratio when gesture ends from closed state.
+  final double openFactor;
+
+  /// 从打开态到关闭态的阈值比例。
+  /// Close threshold ratio when gesture ends from opened state.
+  final double closeFactor;
+
+  /// 开关动画曲线。
+  /// Curve used by open/close animation.
+  final Curve curve;
+
+  /// 开关动画时长。
+  /// Duration used by open/close animation.
+  final Duration duration;
+
+  /// 前景内容（会被左右拖动）。
+  /// Foreground child that follows drag offset.
+  final Widget child;
+
+  /// 左侧 action 列表。
+  /// Leading actions shown while dragging right.
+  final List<Widget> leadingActions;
+
+  /// 右侧 action 列表。
+  /// Trailing actions shown while dragging left.
+  final List<Widget> trailingActions;
+
+  ///左侧是否可以全展开
+  final bool leadingFullExpandable;
+  final double leadingFullExpandExtra;
+
+  ///右侧是否可以全展开
+  final bool trailingFullExpandable;
+  final double trailingFullExpandExtra;
+
+  const SlideableCellView({
+    required super.key,
+    required this.controller,
+    required this.child,
+    this.expandMode = SlideableCellExpandMode.adjustEdge,
+    this.openFactor = 0.3,
+    this.closeFactor = 0.3,
+    this.curve = Curves.linear,
+    this.duration = const Duration(milliseconds: 380),
+    this.leadingActions = const [],
+    this.trailingActions = const [],
+    this.leadingFullExpandable = false,
+    this.trailingFullExpandable = false,
+    this.leadingFullExpandExtra = 60,
+    this.trailingFullExpandExtra = 60,
+  });
+
+  @override
+  State<StatefulWidget> createState() {
+    return _SlideableCellViewState();
+  }
+
+  /// 当前 cell 的业务 key，约定必须使用 [ValueKey]。
+  /// Business key for controller mapping. Must be a [ValueKey].
+  ValueKey get cellKey {
+    final currentKey = key;
+    if (currentKey is ValueKey) {
+      return currentKey;
+    }
+    throw FlutterError(
+      'SlideableCellView.key 必须是 ValueKey，'
+          '例如 ValueKey("message_1")。',
+    );
+  }
+}
+
+/// [SlideableCellView] 的状态实现。
+/// Internal state implementation for [SlideableCellView].
+class _SlideableCellViewState extends State<SlideableCellView> with SingleTickerProviderStateMixin {
+  late final AnimationController _animationController;
+
+  /// 当前前景偏移量。
+  /// Current horizontal offset of foreground child.
+  double _offset = 0;
+
+  /// 每个 action 的测量 key。
+  /// Keys for measuring actual width of each action.
+  late List<GlobalKey> _leadingActionKeys;
+  late List<GlobalKey> _trailingActionKeys;
+
+  /// 每个 action 的实际宽度缓存。
+  /// Cached actual width for every action widget.
+  final List<double> _leadingActionActualWidths = <double>[];
+  final List<double> _trailingActionActualWidths = <double>[];
+
+  /// 控制器桥接入口（避免把 State 暴露给 controller）。
+  /// Bridge entry used by controller to trigger state animations.
+  final _SlideableCellControllerEntry _controllerEntry = _SlideableCellControllerEntry();
+
+  /// 当前开关状态。
+  /// Current open/close status.
+  SlideableCellStatus _status = SlideableCellStatus.closed;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(vsync: this);
+    _recreateActionKeys();
+    _resizeActualWidths();
+    _bindController();
+  }
+
+  @override
+  void didUpdateWidget(covariant SlideableCellView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.leadingActions.length != widget.leadingActions.length ||
+        oldWidget.trailingActions.length != widget.trailingActions.length) {
+      _recreateActionKeys();
+      _resizeActualWidths();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _collectActionWidths();
+        }
+      });
+    }
+    if (oldWidget.cellKey != widget.cellKey || oldWidget.controller != widget.controller) {
+      oldWidget.controller._unregister(oldWidget.cellKey, _controllerEntry);
+      _bindController();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller._unregister(widget.cellKey, _controllerEntry);
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  /// 重新构建 action 的测量 key 列表。
+  /// Rebuilds keys used for action width measurement.
+  void _recreateActionKeys() {
+    _leadingActionKeys = List<GlobalKey>.generate(
+      widget.leadingActions.length,
+          (_) => GlobalKey(),
+      growable: false,
+    );
+    _trailingActionKeys = List<GlobalKey>.generate(
+      widget.trailingActions.length,
+          (_) => GlobalKey(),
+      growable: false,
+    );
+  }
+
+  /// 按 action 数量初始化宽度缓存。
+  /// Initializes width cache with action counts.
+  void _resizeActualWidths() {
+    _leadingActionActualWidths
+      ..clear()
+      ..addAll(List<double>.filled(widget.leadingActions.length, 0));
+    _trailingActionActualWidths
+      ..clear()
+      ..addAll(List<double>.filled(widget.trailingActions.length, 0));
+  }
+
+  /// 将当前 State 绑定到 controller。
+  /// Binds state callbacks into external controller.
+  void _bindController() {
+    _controllerEntry.openLeading = () => _animateToLeadingOpen();
+    _controllerEntry.openTrailing = () => _animateToTrailingOpen();
+    _controllerEntry.close = () => _animateToClosed();
+    widget.controller._register(widget.cellKey, _controllerEntry, _status);
+  }
+
+  /// 左侧 actions 实际总宽度。
+  /// Total measured width of leading actions.
+  double get _leadingActualTotalWidth {
+    return _leadingActionActualWidths.fold(0, (sum, item) => sum + item);
+  }
+
+  /// 右侧 actions 实际总宽度。
+  /// Total measured width of trailing actions.
+  double get _trailingActualTotalWidth {
+    return _trailingActionActualWidths.fold(0, (sum, item) => sum + item);
+  }
+
+  /// 收集 action 实际宽度并在变化时刷新。
+  /// Collects real action widths and triggers rebuild if changed.
+  void _collectActionWidths() {
+    var changed = false;
+    for (var i = 0; i < _leadingActionKeys.length; i++) {
+      final width = _readWidth(_leadingActionKeys[i]);
+      if (width > 0 && _leadingActionActualWidths[i] != width) {
+        _leadingActionActualWidths[i] = width;
+        changed = true;
+      }
+    }
+    for (var i = 0; i < _trailingActionKeys.length; i++) {
+      final width = _readWidth(_trailingActionKeys[i]);
+      if (width > 0 && _trailingActionActualWidths[i] != width) {
+        _trailingActionActualWidths[i] = width;
+        changed = true;
+      }
+    }
+    if (changed && mounted) {
+      setState(() {});
+    }
+  }
+
+  /// 从 key 对应渲染对象读取宽度。
+  /// Reads width from render object bound to key.
+  double _readWidth(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) {
+      return 0;
+    }
+    final renderObject = context.findRenderObject();
+    if (renderObject is RenderBox) {
+      return renderObject.size.width;
+    }
+    return 0;
+  }
+
+  /// 根据偏移量刷新控制器中的状态缓存。
+  /// Syncs status cache in controller from current offset.
+  void _updateStatusByOffset() {
+    final nextStatus = _offset == 0
+        ? SlideableCellStatus.closed
+        : (_offset > 0 ? SlideableCellStatus.leadingOpen : SlideableCellStatus.trailingOpen);
+    if (_status != nextStatus) {
+      _status = nextStatus;
+      widget.controller._updateStatus(widget.cellKey, _status);
+    }
+  }
+
+  /// 执行偏移动画（统一入口）。
+  /// Unified animation entry for offset transitions.
+  Future<void> _animateTo(double target) async {
+    if (!mounted) {
+      return;
+    }
+    _animationController
+      ..stop()
+      ..duration = widget.duration;
+    final animation = Tween<double>(begin: _offset, end: target).animate(
+      CurvedAnimation(parent: _animationController, curve: widget.curve),
+    );
+    void listener() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _offset = animation.value;
+      });
+    }
+
+    animation.addListener(listener);
+    await _animationController.forward(from: 0);
+    animation.removeListener(listener);
+    if (mounted) {
+      setState(() {
+        _offset = target;
+      });
+      _updateStatusByOffset();
+    }
+  }
+
+  /// 动画打开左侧。
+  /// Animate to leading-open position.
+  Future<void> _animateToLeadingOpen() {
+    final target = _leadingActualTotalWidth;
+    return _animateTo(target > 0 ? target : 0);
+  }
+
+  /// 动画打开右侧。
+  /// Animate to trailing-open position.
+  Future<void> _animateToTrailingOpen() {
+    final target = _trailingActualTotalWidth;
+    return _animateTo(target > 0 ? -target : 0);
+  }
+
+  /// 动画关闭。
+  /// Animate to closed position.
+  Future<void> _animateToClosed() {
+    return _animateTo(0);
+  }
+
+  /// 手势开始时终止进行中的动画。
+  /// Stop active animation when a new drag starts.
+  void _onHorizontalDragStart(DragStartDetails details) {
+    _animationController.stop();
+  }
+
+  /// 拖动过程中实时更新偏移，并限制在左右可展开范围内。
+  /// Updates offset while dragging and clamps to action total widths.
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    final next = _offset + details.delta.dx;
+    final clamped = next.clamp(
+      -_trailingActualTotalWidth,
+      _leadingActualTotalWidth,
+    );
+    if (clamped == _offset) {
+      return;
+    }
+    setState(() {
+      _offset = clamped.toDouble();
+    });
+  }
+
+  /// 手势结束阈值判定：
+  /// 关闭态使用 [openFactor]，打开态使用 [closeFactor]。
+  /// Gesture-end threshold decision:
+  /// uses [openFactor] from closed state and [closeFactor] from opened state.
+  Future<void> _onHorizontalDragEnd(DragEndDetails details) async {
+    final leadingWidth = _leadingActualTotalWidth;
+    final trailingWidth = _trailingActualTotalWidth;
+    if (_status == SlideableCellStatus.closed) {
+      if (_offset > 0 && leadingWidth > 0) {
+        final factor = _offset / leadingWidth;
+        if (factor > widget.openFactor) {
+          await _animateToLeadingOpen();
+        } else {
+          await _animateToClosed();
+        }
+      } else if (_offset < 0 && trailingWidth > 0) {
+        final factor = (-_offset) / trailingWidth;
+        if (factor > widget.openFactor) {
+          await _animateToTrailingOpen();
+        } else {
+          await _animateToClosed();
+        }
+      } else {
+        await _animateToClosed();
+      }
+      return;
+    }
+
+    if (_status == SlideableCellStatus.leadingOpen) {
+      if (_offset <= 0 || leadingWidth <= 0) {
+        await _animateToClosed();
+        return;
+      }
+      final closedDistance = (leadingWidth - _offset).clamp(0, leadingWidth);
+      final shouldClose = (closedDistance.toDouble() / leadingWidth) > widget.closeFactor;
+      if (shouldClose) {
+        await _animateToClosed();
+      } else {
+        await _animateToLeadingOpen();
+      }
+      return;
+    }
+
+    if (_offset >= 0 || trailingWidth <= 0) {
+      await _animateToClosed();
+      return;
+    }
+    final openedDistance = (-_offset).clamp(0, trailingWidth);
+    final closedDistance = trailingWidth - openedDistance.toDouble();
+    final shouldClose = (closedDistance / trailingWidth) > widget.closeFactor;
+    if (shouldClose) {
+      await _animateToClosed();
+    } else {
+      await _animateToTrailingOpen();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _collectActionWidths();
+      }
+    });
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        _buildMeasureActions(),
+        _buildLeading(),
+        _buildTrailing(),
+        _buildChild(),
+      ],
+    );
+  }
+
+  /// 构建左侧 actions 区域。
+  /// Builds leading action area.
+  Widget _buildLeading() {
+    final leadingWidth = _offset > 0 ? _offset : 0.0;
+    if (leadingWidth <= 0) {
+      return const SizedBox.shrink();
+    }
+    switch (widget.expandMode) {
+      case SlideableCellExpandMode.everyItem:
+        return Positioned.fill(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: leadingWidth.toDouble(),
+              child: Row(
+                children: widget.leadingActions.map((item) => Expanded(child: item)).toList(growable: false),
+              ),
+            ),
+          ),
+        );
+      case SlideableCellExpandMode.adjustEdge:
+        final actualWidth = _leadingActualTotalWidth;
+        final itemCount = widget.leadingActions.length;
+        if (itemCount == 0) {
+          return const SizedBox.shrink();
+        }
+        final uniformWidth = leadingWidth > actualWidth && actualWidth > 0 ? leadingWidth / itemCount : null;
+        return Positioned.fill(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FractionalTranslation(
+              translation: const Offset(-1.0, 0),
+              child: Transform.translate(
+                offset: Offset(leadingWidth, 0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List<Widget>.generate(
+                    itemCount,
+                        (index) {
+                      if (uniformWidth != null) {
+                        return SizedBox(
+                          width: uniformWidth,
+                          child: widget.leadingActions[index],
+                        );
+                      }
+                      final actionWidth = _leadingActionActualWidths[index];
+                      return SizedBox(
+                        width: actionWidth > 0 ? actionWidth : null,
+                        child: widget.leadingActions[index],
+                      );
+                    },
+                    growable: false,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+    }
+  }
+
+  /// 构建右侧 actions 区域。
+  /// Builds trailing action area.
+  Widget _buildTrailing() {
+    final trailingWidth = _offset < 0 ? -_offset : 0.0;
+    if (trailingWidth <= 0) {
+      return const SizedBox.shrink();
+    }
+    switch (widget.expandMode) {
+      case SlideableCellExpandMode.everyItem:
+        return Positioned.fill(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: trailingWidth.toDouble(),
+              child: Row(
+                children: widget.trailingActions.map((item) => Expanded(child: item)).toList(growable: false),
+              ),
+            ),
+          ),
+        );
+      case SlideableCellExpandMode.adjustEdge:
+        final actualWidth = _trailingActualTotalWidth;
+        final itemCount = widget.trailingActions.length;
+        if (itemCount == 0) {
+          return const SizedBox.shrink();
+        }
+        final uniformWidth = trailingWidth > actualWidth && actualWidth > 0 ? trailingWidth / itemCount : null;
+        return Positioned.fill(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: FractionalTranslation(
+              translation: const Offset(1.0, 0),
+              child: Transform.translate(
+                offset: Offset(-trailingWidth, 0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List<Widget>.generate(itemCount, (index) {
+                    if (uniformWidth != null) {
+                      return SizedBox(
+                        width: uniformWidth,
+                        child: widget.trailingActions[index],
+                      );
+                    }
+                    final actionWidth = _trailingActionActualWidths[index];
+                    return SizedBox(
+                      width: actionWidth > 0 ? actionWidth : null,
+                      child: widget.trailingActions[index],
+                    );
+                  }, growable: false),
+                ),
+              ),
+            ),
+          ),
+        );
+    }
+  }
+
+  /// 离屏测量 action 实际宽度，供 adjustEdge 计算使用。
+  /// Offstage measurement tree for action real widths.
+  Widget _buildMeasureActions() {
+    return Offstage(
+      offstage: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...List<Widget>.generate(widget.leadingActions.length, (index) {
+            return KeyedSubtree(
+              key: _leadingActionKeys[index],
+              child: widget.leadingActions[index],
+            );
+          }, growable: false),
+          ...List<Widget>.generate(widget.trailingActions.length, (index) {
+            return KeyedSubtree(
+              key: _trailingActionKeys[index],
+              child: widget.trailingActions[index],
+            );
+          }, growable: false),
+        ],
+      ),
+    );
+  }
+
+  /// 构建前景 child，并绑定水平拖动手势。
+  /// Builds foreground child with horizontal drag gestures.
+  Widget _buildChild() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: _onHorizontalDragStart,
+      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
+      child: Transform.translate(
+        offset: Offset(_offset, 0),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// 控制器到 State 的内部回调入口。
+/// Internal callback holder used by controller.
+class _SlideableCellControllerEntry {
+  Future<void> Function()? openLeading;
+  Future<void> Function()? openTrailing;
+  Future<void> Function()? close;
+}
