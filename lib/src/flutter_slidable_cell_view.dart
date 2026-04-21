@@ -506,13 +506,19 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
         _collectActionWidths();
       }
     });
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        _buildChild(),
-        _buildLeading(),
-        _buildTrailing(),
-      ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: _onHorizontalDragStart,
+      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _buildChild(),
+          _buildLeading(),
+          _buildTrailing(),
+        ],
+      ),
     );
   }
 
@@ -689,15 +695,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   /// 构建前景 child，并绑定水平拖动手势。
   /// Builds foreground child with horizontal drag gestures.
   Widget _buildChild() {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragStart: _onHorizontalDragStart,
-      onHorizontalDragUpdate: _onHorizontalDragUpdate,
-      onHorizontalDragEnd: _onHorizontalDragEnd,
-      child: Transform.translate(
-        offset: Offset(_offset, 0),
-        child: widget.child,
-      ),
+    return Transform.translate(
+      offset: Offset(_offset, 0),
+      child: widget.child,
     );
   }
 }
