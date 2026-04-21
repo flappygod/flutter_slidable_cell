@@ -87,7 +87,7 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                 return SlideableCellView(
                   key: key,
                   controller: _controller,
-                  expandMode: SlideableCellExpandMode.adjustEdge,
+                  expandMode: SlideableCellExpandMode.everyItem,
                   openFactor: 0.3,
                   closeFactor: 0.3,
                   duration: const Duration(milliseconds: 300),
