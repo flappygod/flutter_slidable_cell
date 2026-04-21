@@ -44,11 +44,9 @@ class SlideableCellController {
 
   /// 注册一个可控制的 Cell 实例。
   /// Registers a cell entry for controller operations.
-  void _register(
-    ValueKey key,
-    _SlideableCellControllerEntry entry,
-    SlideableCellStatus initialStatus,
-  ) {
+  void _register(ValueKey key,
+      _SlideableCellControllerEntry entry,
+      SlideableCellStatus initialStatus,) {
     _entries[key] = entry;
     _status[key] = initialStatus;
   }
@@ -191,7 +189,7 @@ class SlideableCellView extends StatefulWidget {
     }
     throw FlutterError(
       'SlideableCellView.key 必须是 ValueKey，'
-      '例如 ValueKey("message_1")。',
+          '例如 ValueKey("message_1")。',
     );
   }
 }
@@ -267,12 +265,12 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   void _recreateActionKeys() {
     _leadingActionKeys = List<GlobalKey>.generate(
       widget.leadingActions.length,
-      (_) => GlobalKey(),
+          (_) => GlobalKey(),
       growable: false,
     );
     _trailingActionKeys = List<GlobalKey>.generate(
       widget.trailingActions.length,
-      (_) => GlobalKey(),
+          (_) => GlobalKey(),
       growable: false,
     );
   }
@@ -517,7 +515,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   }
 
   double _maxDragDistance(double actualTotalWidth) {
-    final viewport = MediaQuery.sizeOf(context).width;
+    final viewport = MediaQuery
+        .sizeOf(context)
+        .width;
     return actualTotalWidth > viewport ? actualTotalWidth : viewport;
   }
 
@@ -542,17 +542,22 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
-                (index) {
+                    (index) {
                   return ClipRect(
-                    child: SizedBox(
+                    child: Container(
                       width: eachWidth,
+                      alignment: Alignment.center,
                       child: OverflowBox(
-                        minWidth: eachWidth,
+                        minWidth: 0,
                         maxWidth: double.infinity,
                         alignment: Alignment.center,
-                        child: KeyedSubtree(
-                          key: _leadingActionKeys[index],
-                          child: widget.leadingActions[index],
+                        child: UnconstrainedBox(
+                          constrainedAxis: Axis.vertical,
+                          alignment: Alignment.center,
+                          child: KeyedSubtree(
+                            key: _leadingActionKeys[index],
+                            child: widget.leadingActions[index],
+                          ),
                         ),
                       ),
                     ),
@@ -578,7 +583,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.leadingActions.length,
-                  (index) {
+                      (index) {
                     return KeyedSubtree(
                       key: _leadingActionKeys[index],
                       child: widget.leadingActions[index],
@@ -606,7 +611,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     //每个的宽度
     switch (widget.expandMode) {
       case SlideableCellExpandMode.everyItem:
-        final eachWidth = trailingWidth / widget.leadingActions.length;
+        final eachWidth = trailingWidth / widget.trailingActions.length;
         return Positioned(
           right: 0,
           top: 0,
@@ -617,17 +622,22 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.trailingActions.length,
-                (index) {
+                    (index) {
                   return ClipRect(
-                    child: SizedBox(
+                    child: Container(
                       width: eachWidth,
+                      alignment: Alignment.center,
                       child: OverflowBox(
-                        minWidth: eachWidth,
+                        minWidth: 0,
                         maxWidth: double.infinity,
                         alignment: Alignment.center,
-                        child: KeyedSubtree(
-                          key: _trailingActionKeys[index],
-                          child: widget.trailingActions[index],
+                        child: UnconstrainedBox(
+                          constrainedAxis: Axis.vertical,
+                          alignment: Alignment.center,
+                          child: KeyedSubtree(
+                            key: _trailingActionKeys[index],
+                            child: widget.trailingActions[index],
+                          ),
                         ),
                       ),
                     ),
@@ -653,7 +663,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.trailingActions.length,
-                  (index) {
+                      (index) {
                     return KeyedSubtree(
                       key: _trailingActionKeys[index],
                       child: widget.trailingActions[index],
