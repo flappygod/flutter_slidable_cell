@@ -44,9 +44,11 @@ class SlideableCellController {
 
   /// 注册一个可控制的 Cell 实例。
   /// Registers a cell entry for controller operations.
-  void _register(ValueKey key,
-      _SlideableCellControllerEntry entry,
-      SlideableCellStatus initialStatus,) {
+  void _register(
+    ValueKey key,
+    _SlideableCellControllerEntry entry,
+    SlideableCellStatus initialStatus,
+  ) {
     _entries[key] = entry;
     _status[key] = initialStatus;
   }
@@ -197,7 +199,7 @@ class SlideableCellView extends StatefulWidget {
     }
     throw FlutterError(
       'SlideableCellView.key 必须是 ValueKey，'
-          '例如 ValueKey("message_1")。',
+      '例如 ValueKey("message_1")。',
     );
   }
 }
@@ -273,12 +275,12 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   void _recreateActionKeys() {
     _leadingActionKeys = List<GlobalKey>.generate(
       widget.leadingActions.length,
-          (_) => GlobalKey(),
+      (_) => GlobalKey(),
       growable: false,
     );
     _trailingActionKeys = List<GlobalKey>.generate(
       widget.trailingActions.length,
-          (_) => GlobalKey(),
+      (_) => GlobalKey(),
       growable: false,
     );
   }
@@ -565,10 +567,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     );
   }
 
+  ///最大的drag的宽度
   double _maxDragDistance(double actualTotalWidth) {
-    final viewport = MediaQuery
-        .sizeOf(context)
-        .width;
+    final viewport = MediaQuery.sizeOf(context).width;
     return actualTotalWidth > viewport ? actualTotalWidth : viewport;
   }
 
@@ -582,7 +583,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     final leadingWidth = _offset.clamp(0.0, double.infinity);
     switch (widget.expandMode) {
       case SlideableCellExpandMode.everyItem:
-      //如果是每个item自适应
+        //如果是每个item自适应
         final double totalActualWidth = _leadingActualTotalWidth;
         return Positioned(
           left: 0,
@@ -594,7 +595,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
-                    (index) {
+                (index) {
                   //获取当前item的实际宽度
                   final double currentActualWidth = _leadingActionActualWidths[index];
                   //以比例进行均分
@@ -628,7 +629,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
           ),
         );
       case SlideableCellExpandMode.adjustEdge:
-      //同样获取实际的宽度
+        //同样获取实际的宽度
         final double totalActualWidth = _leadingActualTotalWidth;
         //如果大于了真实宽度，也使用everyItem的均分模式
         final shouldUseProportionalWidth = totalActualWidth > 0 && leadingWidth > totalActualWidth;
@@ -646,7 +647,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.leadingActions.length,
-                      (index) {
+                  (index) {
                     if (shouldUseProportionalWidth) {
                       final currentActualWidth = _leadingActionActualWidths[index];
                       final itemWidth = leadingWidth * (currentActualWidth / totalActualWidth);
@@ -708,7 +709,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.trailingActions.length,
-                    (index) {
+                (index) {
                   //使用比例进行均分
                   final currentActualWidth = _trailingActionActualWidths[index];
                   final itemWidth = totalActualWidth > 0
@@ -756,7 +757,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.trailingActions.length,
-                      (index) {
+                  (index) {
                     if (shouldUseProportionalWidth) {
                       //如果大于了真实宽度，也使用everyItem的均分模式
                       final currentActualWidth = _trailingActionActualWidths[index];
