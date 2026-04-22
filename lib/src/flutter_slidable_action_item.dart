@@ -118,6 +118,7 @@ class SlideableActionItem extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             iconWidget!,
             textWidget!,
@@ -128,6 +129,7 @@ class SlideableActionItem extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             textWidget!,
             iconWidget!,
@@ -138,6 +140,7 @@ class SlideableActionItem extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             textWidget!,
             iconWidget!,
@@ -148,6 +151,7 @@ class SlideableActionItem extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             iconWidget!,
             textWidget!,
