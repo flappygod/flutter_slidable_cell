@@ -81,10 +81,9 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
           Expanded(
             child: ListView.separated(
               itemCount: _items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, __) =>  Container(height: 0.3,color: Colors.white70,),
               itemBuilder: (context, index) {
                 final key = ValueKey('cell_$index');
-                final status = _controller.statusOf(key);
                 return SlideableCellView(
                   key: key,
                   controller: _controller,
@@ -93,6 +92,7 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                   closeFactor: 0.3,
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutCubic,
+                  color: Colors.grey,
                   leadingActions: [
                     Container(
                       width: 80,
@@ -121,15 +121,12 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                       child: const Text('删除', style: TextStyle(color: Colors.white)),
                     ),
                   ],
-                  child: ListTile(
-                    tileColor: Colors.white,
-                    title: Text('消息 #$index'),
-                    subtitle: Text('status: ${status.name}'),
-                    trailing: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(color: _statusColor(status), shape: BoxShape.circle),
-                    ),
+                  child: Container(
+                    alignment: Alignment.center,
+                    height: 65,
+                    color: Colors.white,
+                    width: double.infinity,
+                    child: Text('消息 #$index'),
                   ),
                 );
               },
