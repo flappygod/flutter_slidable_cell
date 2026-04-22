@@ -1,21 +1,24 @@
 import 'package:flutter/cupertino.dart';
 
-///侧滑
-class SlideableActionItem extends StatelessWidget {
-  //当前的背景颜色
-  final Color? color;
-
-  //当前的child
-  final Widget child;
-
-  const SlideableActionItem({
+/// 侧滑
+class SlideableActionItem extends Container {
+  //扩展时候的颜色
+  final Color? slideBackgroundColor;
+  SlideableActionItem({
+    this.slideBackgroundColor,
     super.key,
-    required this.child,
-    this.color,
+    super.alignment,
+    super.padding,
+    super.color,
+    super.decoration,
+    super.foregroundDecoration,
+    super.width,
+    super.height,
+    super.constraints,
+    super.margin,
+    super.transform,
+    super.transformAlignment,
+    super.clipBehavior,
+    super.child,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    return child;
-  }
 }

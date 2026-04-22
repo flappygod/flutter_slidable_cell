@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'flutter_slidable_action_item.dart';
 import 'flutter_slidable_base.dart';
 
 /// 滑动 Cell 的控制器。
@@ -573,6 +574,15 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     return actualTotalWidth > viewport ? actualTotalWidth : viewport;
   }
 
+  ///提取child的颜色
+  Color? _getChildColor(Widget child) {
+    if (child is SlideableActionItem) {
+      return child.slideBackgroundColor;
+    } else {
+      return null;
+    }
+  }
+
   /// 构建左侧 actions 区域。
   /// Builds leading action area.
   Widget _buildLeading() {
@@ -602,11 +612,17 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                   final double itemWidth = totalActualWidth > 0
                       ? leadingWidth * (currentActualWidth / totalActualWidth)
                       : leadingWidth / widget.leadingActions.length;
+
+                  //获取item的key和child
+                  GlobalKey globalKey = _leadingActionKeys[index];
+                  Widget actionChild = widget.leadingActions[index];
+
                   //返回相应的
                   return ClipRect(
                     child: Container(
                       width: itemWidth,
                       alignment: Alignment.center,
+                      color: _getChildColor(actionChild),
                       child: OverflowBox(
                         minWidth: 0,
                         maxWidth: double.infinity,
@@ -615,8 +631,8 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                           constrainedAxis: Axis.vertical,
                           alignment: Alignment.center,
                           child: KeyedSubtree(
-                            key: _leadingActionKeys[index],
-                            child: widget.leadingActions[index],
+                            key: globalKey,
+                            child: actionChild,
                           ),
                         ),
                       ),
@@ -649,12 +665,19 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                   widget.leadingActions.length,
                   (index) {
                     if (shouldUseProportionalWidth) {
+                      //获取当前item的实际宽度
                       final currentActualWidth = _leadingActionActualWidths[index];
                       final itemWidth = leadingWidth * (currentActualWidth / totalActualWidth);
+
+                      //获取item的key和child
+                      GlobalKey globalKey = _leadingActionKeys[index];
+                      Widget actionChild = widget.leadingActions[index];
+
                       return ClipRect(
                         child: Container(
                           width: itemWidth,
                           alignment: Alignment.center,
+                          color: _getChildColor(actionChild),
                           child: OverflowBox(
                             minWidth: 0,
                             maxWidth: double.infinity,
@@ -663,18 +686,25 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                               constrainedAxis: Axis.vertical,
                               alignment: Alignment.center,
                               child: KeyedSubtree(
-                                key: _leadingActionKeys[index],
-                                child: widget.leadingActions[index],
+                                key: globalKey,
+                                child: actionChild,
                               ),
                             ),
                           ),
                         ),
                       );
+                    } else {
+                      //获取item的key和child
+                      GlobalKey globalKey = _leadingActionKeys[index];
+                      Widget actionChild = widget.leadingActions[index];
+                      return Container(
+                        color: _getChildColor(actionChild),
+                        child: KeyedSubtree(
+                          key: globalKey,
+                          child: actionChild,
+                        ),
+                      );
                     }
-                    return KeyedSubtree(
-                      key: _leadingActionKeys[index],
-                      child: widget.leadingActions[index],
-                    );
                   },
                   growable: false,
                 ),
@@ -715,10 +745,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                   final itemWidth = totalActualWidth > 0
                       ? trailingWidth * (currentActualWidth / totalActualWidth)
                       : trailingWidth / widget.trailingActions.length;
+                  //获取item的key和child
+                  GlobalKey globalKey = _trailingActionKeys[index];
+                  Widget actionChild = widget.trailingActions[index];
                   return ClipRect(
                     child: Container(
                       width: itemWidth,
                       alignment: Alignment.center,
+                      color: _getChildColor(actionChild),
                       child: OverflowBox(
                         minWidth: 0,
                         maxWidth: double.infinity,
@@ -727,8 +761,8 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                           constrainedAxis: Axis.vertical,
                           alignment: Alignment.center,
                           child: KeyedSubtree(
-                            key: _trailingActionKeys[index],
-                            child: widget.trailingActions[index],
+                            key: globalKey,
+                            child: actionChild,
                           ),
                         ),
                       ),
@@ -762,10 +796,16 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                       //如果大于了真实宽度，也使用everyItem的均分模式
                       final currentActualWidth = _trailingActionActualWidths[index];
                       final itemWidth = trailingWidth * (currentActualWidth / totalActualWidth);
+
+                      //获取item的key和child
+                      GlobalKey globalKey = _trailingActionKeys[index];
+                      Widget actionChild = widget.trailingActions[index];
+
                       return ClipRect(
                         child: Container(
                           width: itemWidth,
                           alignment: Alignment.center,
+                          color: _getChildColor(actionChild),
                           child: OverflowBox(
                             minWidth: 0,
                             maxWidth: double.infinity,
@@ -774,18 +814,25 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                               constrainedAxis: Axis.vertical,
                               alignment: Alignment.center,
                               child: KeyedSubtree(
-                                key: _trailingActionKeys[index],
-                                child: widget.trailingActions[index],
+                                key: globalKey,
+                                child: actionChild,
                               ),
                             ),
                           ),
                         ),
                       );
+                    } else {
+                      //获取item的key和child
+                      GlobalKey globalKey = _trailingActionKeys[index];
+                      Widget actionChild = widget.trailingActions[index];
+                      return Container(
+                        color: _getChildColor(actionChild),
+                        child: KeyedSubtree(
+                          key: globalKey,
+                          child: actionChild,
+                        ),
+                      );
                     }
-                    return KeyedSubtree(
-                      key: _trailingActionKeys[index],
-                      child: widget.trailingActions[index],
-                    );
                   },
                   growable: false,
                 ),
