@@ -63,6 +63,7 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Slidable Cell 示例')),
+      backgroundColor: Colors.grey,
       body: Column(
         children: [
           Padding(

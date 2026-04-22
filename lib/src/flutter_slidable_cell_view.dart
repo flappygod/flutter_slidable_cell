@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'flutter_slidable_base.dart';
 
 /// 滑动 Cell 的控制器。
@@ -44,11 +44,9 @@ class SlideableCellController {
 
   /// 注册一个可控制的 Cell 实例。
   /// Registers a cell entry for controller operations.
-  void _register(
-    ValueKey key,
-    _SlideableCellControllerEntry entry,
-    SlideableCellStatus initialStatus,
-  ) {
+  void _register(ValueKey key,
+      _SlideableCellControllerEntry entry,
+      SlideableCellStatus initialStatus,) {
     _entries[key] = entry;
     _status[key] = initialStatus;
   }
@@ -160,6 +158,12 @@ class SlideableCellView extends StatefulWidget {
   final bool trailingFullExpandable;
   final double trailingFullExpandExtra;
 
+  ///背景颜色
+  final Color color;
+
+  ///打开自己的时候关闭其他的item
+  final bool closeOthersWhenOpen;
+
   const SlideableCellView({
     required super.key,
     required this.controller,
@@ -175,6 +179,8 @@ class SlideableCellView extends StatefulWidget {
     this.trailingFullExpandable = false,
     this.leadingFullExpandExtra = 60,
     this.trailingFullExpandExtra = 60,
+    this.closeOthersWhenOpen = true,
+    this.color = Colors.white,
   });
 
   @override
@@ -191,7 +197,7 @@ class SlideableCellView extends StatefulWidget {
     }
     throw FlutterError(
       'SlideableCellView.key 必须是 ValueKey，'
-      '例如 ValueKey("message_1")。',
+          '例如 ValueKey("message_1")。',
     );
   }
 }
@@ -267,12 +273,12 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   void _recreateActionKeys() {
     _leadingActionKeys = List<GlobalKey>.generate(
       widget.leadingActions.length,
-      (_) => GlobalKey(),
+          (_) => GlobalKey(),
       growable: false,
     );
     _trailingActionKeys = List<GlobalKey>.generate(
       widget.trailingActions.length,
-      (_) => GlobalKey(),
+          (_) => GlobalKey(),
       growable: false,
     );
   }
@@ -393,21 +399,50 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   /// 动画打开左侧。
   /// Animate to leading-open position.
   Future<void> _animateToLeadingOpen() {
-    final target = _leadingActualTotalWidth;
-    return _animateTo(target > 0 ? target : 0);
+    return _openTo(target: _leadingActualTotalWidth);
   }
 
   /// 动画打开右侧。
   /// Animate to trailing-open position.
   Future<void> _animateToTrailingOpen() {
-    final target = _trailingActualTotalWidth;
-    return _animateTo(target > 0 ? -target : 0);
+    return _openTo(target: -_trailingActualTotalWidth);
   }
 
   /// 动画关闭。
   /// Animate to closed position.
   Future<void> _animateToClosed() {
     return _animateTo(0);
+  }
+
+  ///打开到指定的位置
+  Future<void> _openTo({required double target}) async {
+    if (widget.closeOthersWhenOpen) {
+      await Future.wait([
+        //关闭其他的
+        _closeOtherOpenedCells(),
+        //到指定位置
+        _animateTo(target),
+      ]);
+    } else {
+      //到指定位置
+      await _animateTo(target);
+    }
+  }
+
+  /// 关闭其他已打开的 items
+  Future<void> _closeOtherOpenedCells() async {
+    final currentKeyValue = widget.cellKey.value;
+    final statusEntries = widget.controller.statuses.entries.toList(growable: false);
+    final futures = <Future<void>>[];
+    for (final entry in statusEntries) {
+      final bool isCurrentCell = entry.key.value == currentKeyValue;
+      final bool isOpened =
+          entry.value == SlideableCellStatus.leadingOpen || entry.value == SlideableCellStatus.trailingOpen;
+      if (!isCurrentCell && isOpened) {
+        futures.add(widget.controller.closeCell(entry.key));
+      }
+    }
+    await Future.wait(futures);
   }
 
   /// 手势开始时终止进行中的动画。
@@ -439,16 +474,19 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     final leadingWidth = _leadingActualTotalWidth;
     final trailingWidth = _trailingActualTotalWidth;
 
-    // 超出真实宽度时，优先回弹到真实宽度。
+    ///左侧超出真实宽度时，优先回弹到真实宽度。
     if (_offset > 0 && leadingWidth > 0 && _offset > leadingWidth) {
       await _animateToLeadingOpen();
       return;
     }
+
+    ///右侧超出真实宽度时，优先回弹到真实宽度。
     if (_offset < 0 && trailingWidth > 0 && (-_offset) > trailingWidth) {
       await _animateToTrailingOpen();
       return;
     }
 
+    ///如果是关闭的
     if (_status == SlideableCellStatus.closed) {
       if (_offset > 0 && leadingWidth > 0) {
         final factor = _offset / leadingWidth;
@@ -470,6 +508,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
       return;
     }
 
+    ///如果是左侧打开
     if (_status == SlideableCellStatus.leadingOpen) {
       if (_offset <= 0 || leadingWidth <= 0) {
         await _animateToClosed();
@@ -485,6 +524,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
       return;
     }
 
+    ///如果是右侧打开
     if (_offset >= 0 || trailingWidth <= 0) {
       await _animateToClosed();
       return;
@@ -511,19 +551,24 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
       onHorizontalDragStart: _onHorizontalDragStart,
       onHorizontalDragUpdate: _onHorizontalDragUpdate,
       onHorizontalDragEnd: _onHorizontalDragEnd,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          _buildChild(),
-          _buildLeading(),
-          _buildTrailing(),
-        ],
+      child: Container(
+        color: widget.color,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _buildChild(),
+            _buildLeading(),
+            _buildTrailing(),
+          ],
+        ),
       ),
     );
   }
 
   double _maxDragDistance(double actualTotalWidth) {
-    final viewport = MediaQuery.sizeOf(context).width;
+    final viewport = MediaQuery
+        .sizeOf(context)
+        .width;
     return actualTotalWidth > viewport ? actualTotalWidth : viewport;
   }
 
@@ -537,7 +582,8 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     final leadingWidth = _offset.clamp(0.0, double.infinity);
     switch (widget.expandMode) {
       case SlideableCellExpandMode.everyItem:
-        final totalActualWidth = _leadingActualTotalWidth;
+      //如果是每个item自适应
+        final double totalActualWidth = _leadingActualTotalWidth;
         return Positioned(
           left: 0,
           top: 0,
@@ -548,11 +594,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
-                (index) {
-                  final currentActualWidth = _leadingActionActualWidths[index];
-                  final itemWidth = totalActualWidth > 0
+                    (index) {
+                  //获取当前item的实际宽度
+                  final double currentActualWidth = _leadingActionActualWidths[index];
+                  //以比例进行均分
+                  final double itemWidth = totalActualWidth > 0
                       ? leadingWidth * (currentActualWidth / totalActualWidth)
                       : leadingWidth / widget.leadingActions.length;
+                  //返回相应的
                   return ClipRect(
                     child: Container(
                       width: itemWidth,
@@ -579,6 +628,10 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
           ),
         );
       case SlideableCellExpandMode.adjustEdge:
+      //同样获取实际的宽度
+        final double totalActualWidth = _leadingActualTotalWidth;
+        //如果大于了真实宽度，也使用everyItem的均分模式
+        final shouldUseProportionalWidth = totalActualWidth > 0 && leadingWidth > totalActualWidth;
         return Positioned(
           left: 0,
           top: 0,
@@ -593,7 +646,30 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.leadingActions.length,
-                  (index) {
+                      (index) {
+                    if (shouldUseProportionalWidth) {
+                      final currentActualWidth = _leadingActionActualWidths[index];
+                      final itemWidth = leadingWidth * (currentActualWidth / totalActualWidth);
+                      return ClipRect(
+                        child: Container(
+                          width: itemWidth,
+                          alignment: Alignment.center,
+                          child: OverflowBox(
+                            minWidth: 0,
+                            maxWidth: double.infinity,
+                            alignment: Alignment.center,
+                            child: UnconstrainedBox(
+                              constrainedAxis: Axis.vertical,
+                              alignment: Alignment.center,
+                              child: KeyedSubtree(
+                                key: _leadingActionKeys[index],
+                                child: widget.leadingActions[index],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
                     return KeyedSubtree(
                       key: _leadingActionKeys[index],
                       child: widget.leadingActions[index],
@@ -632,7 +708,8 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.trailingActions.length,
-                (index) {
+                    (index) {
+                  //使用比例进行均分
                   final currentActualWidth = _trailingActionActualWidths[index];
                   final itemWidth = totalActualWidth > 0
                       ? trailingWidth * (currentActualWidth / totalActualWidth)
@@ -663,6 +740,8 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
           ),
         );
       case SlideableCellExpandMode.adjustEdge:
+        final totalActualWidth = _trailingActualTotalWidth;
+        final shouldUseProportionalWidth = totalActualWidth > 0 && trailingWidth > totalActualWidth;
         return Positioned(
           right: 0,
           top: 0,
@@ -677,7 +756,31 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.trailingActions.length,
-                  (index) {
+                      (index) {
+                    if (shouldUseProportionalWidth) {
+                      //如果大于了真实宽度，也使用everyItem的均分模式
+                      final currentActualWidth = _trailingActionActualWidths[index];
+                      final itemWidth = trailingWidth * (currentActualWidth / totalActualWidth);
+                      return ClipRect(
+                        child: Container(
+                          width: itemWidth,
+                          alignment: Alignment.center,
+                          child: OverflowBox(
+                            minWidth: 0,
+                            maxWidth: double.infinity,
+                            alignment: Alignment.center,
+                            child: UnconstrainedBox(
+                              constrainedAxis: Axis.vertical,
+                              alignment: Alignment.center,
+                              child: KeyedSubtree(
+                                key: _trailingActionKeys[index],
+                                child: widget.trailingActions[index],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
                     return KeyedSubtree(
                       key: _trailingActionKeys[index],
                       child: widget.trailingActions[index],
