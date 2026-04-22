@@ -82,9 +82,10 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutCubic,
                   color: Colors.grey,
+                  leadingFullExpandable: true,
                   leadingActions: const [
                     SlideableActionItem(
-                      width: 80,
+                      width: 70,
                       slideBackgroundColor: Colors.blue,
                       alignment: Alignment.center,
                       icon: Icon(Icons.vertical_align_top, color: Colors.white, size: 18),
@@ -94,7 +95,7 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                       layout: SlideableActionItemLayout.iconLeftTextRight,
                     ),
                     SlideableActionItem(
-                      width: 96,
+                      width: 85,
                       slideBackgroundColor: Colors.green,
                       alignment: Alignment.center,
                       icon: Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 18),

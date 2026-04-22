@@ -167,6 +167,18 @@ class SlideableCellView extends StatefulWidget {
   ///打开自己的时候关闭其他的item
   final bool closeOthersWhenOpen;
 
+  ///左边expand curve
+  final Curve leadingExpandCurve;
+
+  ///左边expand duration
+  final Duration leadingExpandDuration;
+
+  ///右边expand curve
+  final Curve trailingExpandCurve;
+
+  ///右边expand duration
+  final Duration trailingExpandDuration;
+
   const SlideableCellView({
     required super.key,
     required this.controller,
@@ -184,6 +196,10 @@ class SlideableCellView extends StatefulWidget {
     this.trailingFullExpandExtra = 60,
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
+    this.leadingExpandCurve = Curves.linear,
+    this.leadingExpandDuration = const Duration(milliseconds: 200),
+    this.trailingExpandCurve = Curves.linear,
+    this.trailingExpandDuration = const Duration(milliseconds: 200),
   });
 
   @override
@@ -207,8 +223,9 @@ class SlideableCellView extends StatefulWidget {
 
 /// [SlideableCellView] 的状态实现。
 /// Internal state implementation for [SlideableCellView].
-class _SlideableCellViewState extends State<SlideableCellView> with SingleTickerProviderStateMixin {
-  late final AnimationController _animationController;
+class _SlideableCellViewState extends State<SlideableCellView> with TickerProviderStateMixin {
+  /// 回弹的控制器
+  late final AnimationController _snapAnimationController;
 
   /// 当前前景偏移量。
   /// Current horizontal offset of foreground child.
@@ -232,10 +249,91 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   /// Current open/close status.
   SlideableCellStatus _status = SlideableCellStatus.closed;
 
+  /// 扩展的leading controller
+  late AnimationController _expandLeadingController;
+  late Animation<double> _expandLeadingAnimation;
+  bool _leadingForwarding = false;
+
+  /// 扩展的training controller
+  late AnimationController _expandTrainingController;
+  late Animation<double> _expandTrainingAnimation;
+  bool _trainingForwarding = false;
+
+  ///初始化控制器
+  void _initController() {
+    _snapAnimationController = AnimationController(vsync: this);
+
+    ///头部动画控制
+    _expandLeadingController = AnimationController(
+      vsync: this,
+      duration: widget.leadingExpandDuration,
+      reverseDuration: widget.leadingExpandDuration,
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _expandLeadingAnimation = CurvedAnimation(
+      parent: _expandLeadingController,
+      curve: Curves.easeInOut,
+    );
+
+    ///尾部动画控制
+    _expandTrainingController = AnimationController(
+      vsync: this,
+      duration: widget.trailingExpandDuration,
+      reverseDuration: widget.trailingExpandDuration,
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _expandTrainingAnimation = CurvedAnimation(
+      parent: _expandTrainingController,
+      curve: Curves.easeInOut,
+    );
+
+    ///设置监听
+    _expandLeadingController.addListener(() {
+      setState(() {});
+    });
+    _expandTrainingController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  ///左侧forward
+  void _leadingForward() {
+    if (_leadingForwarding == false) {
+      _leadingForwarding = true;
+      _expandLeadingController.forward(from: _expandLeadingController.value);
+    }
+  }
+
+  ///左侧reverse
+  void _leadingReverse() {
+    if (_leadingForwarding == true) {
+      _leadingForwarding = false;
+      _expandLeadingController.reverse(from: _expandLeadingController.value);
+    }
+  }
+
+  ///右侧forward
+  void _trainingForward() {
+    if (_trainingForwarding = false) {
+      _trainingForwarding = true;
+      _expandTrainingController.forward(from: _expandTrainingController.value);
+    }
+  }
+
+  ///右侧reverse
+  void _trainingReverse() {
+    if (_trainingForwarding = true) {
+      _trainingForwarding = false;
+      _expandTrainingController.reverse(from: _expandTrainingController.value);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(vsync: this);
+    _initController();
     _recreateActionKeys();
     _resizeActualWidths();
     _bindController();
@@ -267,7 +365,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   @override
   void dispose() {
     widget.controller._unregister(widget.cellKey, _controllerEntry);
-    _animationController.dispose();
+    _snapAnimationController.dispose();
     super.dispose();
   }
 
@@ -373,11 +471,11 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     if (!mounted) {
       return;
     }
-    _animationController
+    _snapAnimationController
       ..stop()
       ..duration = widget.duration;
     final animation = Tween<double>(begin: _offset, end: target).animate(
-      CurvedAnimation(parent: _animationController, curve: widget.curve),
+      CurvedAnimation(parent: _snapAnimationController, curve: widget.curve),
     );
     void listener() {
       if (!mounted) {
@@ -389,7 +487,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
     }
 
     animation.addListener(listener);
-    await _animationController.forward(from: 0);
+    await _snapAnimationController.forward(from: 0);
     animation.removeListener(listener);
     if (mounted) {
       setState(() {
@@ -451,7 +549,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
   /// 手势开始时终止进行中的动画。
   /// Stop active animation when a new drag starts.
   void _onHorizontalDragStart(DragStartDetails details) {
-    _animationController.stop();
+    _snapAnimationController.stop();
   }
 
   /// 拖动过程中实时更新偏移，并限制在左右可展开范围内。
@@ -590,11 +688,110 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
       return const SizedBox.shrink();
     }
     //计算左边的宽度
-    final leadingWidth = _offset.clamp(0.0, double.infinity);
+    final double leadingWidth = _offset.clamp(0.0, double.infinity);
+
+    //同样获取实际的宽度
+    final double totalActualWidth = _leadingActualTotalWidth;
+
+    //如果左侧可打开
+    if (widget.leadingFullExpandable) {
+      ///这里处理expand展开收起触发
+      if (leadingWidth > totalActualWidth + widget.leadingFullExpandExtra) {
+        //触发展开
+        _leadingForward();
+      } else {
+        //触发反向
+        _leadingReverse();
+      }
+
+      ///如果已经大于了真实宽度,但是小于触发宽度
+      if (leadingWidth > totalActualWidth) {
+        return Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          child: SizedBox(
+            width: leadingWidth,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: List<Widget>.generate(
+                widget.leadingActions.length,
+                (index) {
+                  //获取当前item的实际宽度
+                  final double currentActualWidth = _leadingActionActualWidths[index];
+                  //获取item的key和child
+                  GlobalKey globalKey = _leadingActionKeys[index];
+                  //获取item action
+                  Widget actionChild = widget.leadingActions[index];
+                  //对第0条做处理,计算相应item的宽度
+                  double itemWidth;
+                  if (index == 0) {
+                    //拖动的宽度
+                    double dragWidth = (leadingWidth - totalActualWidth);
+                    //展开的宽度
+                    double expandWidth = (totalActualWidth - currentActualWidth) * _expandLeadingController.value;
+                    //这里是宽度
+                    itemWidth = dragWidth + currentActualWidth;
+
+                    ///宽度
+                    print("AAAAAA::$dragWidth + BBBBBB:::$expandWidth +CCCCCC:::$itemWidth");
+
+                    return Transform.translate(
+                      offset: Offset(expandWidth, 0),
+                      child: SizedBox(
+                        width: itemWidth,
+                        child: OverflowBox(
+                          minWidth: itemWidth,
+                          maxWidth: itemWidth + expandWidth,
+                          alignment: Alignment.centerRight,
+                          child: Container(
+                            width: itemWidth + expandWidth,
+                            color: _getChildColor(actionChild),
+                            child: UnconstrainedBox(
+                              constrainedAxis: Axis.vertical,
+                              alignment: Alignment.centerRight,
+                              child: KeyedSubtree(
+                                key: globalKey,
+                                child: actionChild,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  } else {
+                    itemWidth = currentActualWidth;
+                    //返回相应的
+                    return Container(
+                      width: itemWidth,
+                      alignment: Alignment.center,
+                      color: _getChildColor(actionChild),
+                      child: OverflowBox(
+                        minWidth: 0,
+                        maxWidth: double.infinity,
+                        alignment: Alignment.center,
+                        child: UnconstrainedBox(
+                          constrainedAxis: Axis.vertical,
+                          alignment: Alignment.center,
+                          child: KeyedSubtree(
+                            key: globalKey,
+                            child: actionChild,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                },
+                growable: false,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
     switch (widget.expandMode) {
       case SlideableCellExpandMode.everyItem:
-        //如果是每个item自适应
-        final double totalActualWidth = _leadingActualTotalWidth;
         return Positioned(
           left: 0,
           top: 0,
@@ -645,8 +842,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with SingleTicker
           ),
         );
       case SlideableCellExpandMode.adjustEdge:
-        //同样获取实际的宽度
-        final double totalActualWidth = _leadingActualTotalWidth;
         //如果大于了真实宽度，也使用everyItem的均分模式
         final shouldUseProportionalWidth = totalActualWidth > 0 && leadingWidth > totalActualWidth;
         return Positioned(
