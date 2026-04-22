@@ -48,17 +48,6 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
     setState(() {});
   }
 
-  Color _statusColor(SlideableCellStatus status) {
-    switch (status) {
-      case SlideableCellStatus.closed:
-        return Colors.grey;
-      case SlideableCellStatus.leadingOpen:
-        return Colors.green;
-      case SlideableCellStatus.trailingOpen:
-        return Colors.orange;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -81,7 +70,7 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
           Expanded(
             child: ListView.separated(
               itemCount: _items.length,
-              separatorBuilder: (_, __) =>  Container(height: 0.3,color: Colors.white70,),
+              separatorBuilder: (_, __) => Container(height: 0.3, color: Colors.white70),
               itemBuilder: (context, index) {
                 final key = ValueKey('cell_$index');
                 return SlideableCellView(
@@ -93,32 +82,48 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOutCubic,
                   color: Colors.grey,
-                  leadingActions: [
-                    Container(
+                  leadingActions: const [
+                    SlideableActionItem(
                       width: 80,
-                      color: Colors.blue,
+                      slideBackgroundColor: Colors.blue,
                       alignment: Alignment.center,
-                      child: const Text('置顶', style: TextStyle(color: Colors.white)),
+                      icon: Icon(Icons.vertical_align_top, color: Colors.white, size: 18),
+                      iconPadding: EdgeInsets.only(bottom: 4),
+                      text: '置顶',
+                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      layout: SlideableActionItemLayout.iconTopTextBottom,
                     ),
-                    Container(
+                    SlideableActionItem(
                       width: 96,
-                      color: Colors.green,
+                      slideBackgroundColor: Colors.green,
                       alignment: Alignment.center,
-                      child: const Text('标记已读', style: TextStyle(color: Colors.white)),
+                      icon: Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 18),
+                      iconPadding: EdgeInsets.only(bottom: 4),
+                      text: '标记已读',
+                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      layout: SlideableActionItemLayout.iconTopTextBottom,
                     ),
                   ],
-                  trailingActions: [
-                    Container(
+                  trailingActions: const [
+                    SlideableActionItem(
                       width: 92,
-                      color: Colors.orange,
+                      slideBackgroundColor: Colors.orange,
                       alignment: Alignment.center,
-                      child: const Text('稍后处理', style: TextStyle(color: Colors.white)),
+                      icon: Icon(Icons.schedule_outlined, color: Colors.white, size: 18),
+                      iconPadding: EdgeInsets.only(bottom: 4),
+                      text: '稍后处理',
+                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      layout: SlideableActionItemLayout.iconTopTextBottom,
                     ),
-                    Container(
+                    SlideableActionItem(
                       width: 76,
-                      color: Colors.red,
+                      slideBackgroundColor: Colors.red,
                       alignment: Alignment.center,
-                      child: const Text('删除', style: TextStyle(color: Colors.white)),
+                      icon: Icon(Icons.delete_outline, color: Colors.white, size: 18),
+                      iconPadding: EdgeInsets.only(bottom: 4),
+                      text: '删除',
+                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      layout: SlideableActionItemLayout.iconTopTextBottom,
                     ),
                   ],
                   child: Container(
