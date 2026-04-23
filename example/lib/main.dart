@@ -84,8 +84,28 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                   color: Colors.grey,
                   leadingFullExpandable: true,
                   leadingFullExpandBehavior: SlideableExpandBehavior.expand,
+                  onLeadingFullExpand: (behavior) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          duration: const Duration(milliseconds: 800),
+                          content: Text('leading full-expand 触发：$behavior (#$index)'),
+                        ),
+                      );
+                  },
                   trailingFullExpandable: true,
                   trailingFullExpandBehavior: SlideableExpandBehavior.close,
+                  onTrailingFullExpand: (behavior) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          duration: const Duration(milliseconds: 800),
+                          content: Text('trailing full-expand 触发：$behavior (#$index)'),
+                        ),
+                      );
+                  },
                   leadingActions: const [
                     SlideableActionItem(
                       width: 70,

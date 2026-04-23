@@ -191,6 +191,16 @@ class SlideableCellView extends StatefulWidget {
   /// Final behavior after leading full expand is triggered.
   final SlideableExpandBehavior leadingFullExpandBehavior;
 
+  /// leading 侧手势抬起且命中全展开阈值时的回调，
+  /// 参数为本次实际生效的 [SlideableExpandBehavior]。
+  /// 注意：通过 controller 调用 [SlideableCellController.openLeadingFullExpand]
+  /// 不会触发该回调。
+  /// Fired when the gesture ends past the leading full-expand threshold.
+  /// The parameter carries the [SlideableExpandBehavior] that took effect.
+  /// Note: programmatic calls to
+  /// [SlideableCellController.openLeadingFullExpand] do not trigger this.
+  final void Function(SlideableExpandBehavior behavior)? onLeadingFullExpand;
+
   /// 右侧是否可以全展开。
   /// Whether trailing side supports full expansion.
   final bool trailingFullExpandable;
@@ -202,6 +212,16 @@ class SlideableCellView extends StatefulWidget {
   /// 全展开触发后的最终行为，含义同 [leadingFullExpandBehavior]。
   /// Final behavior after trailing full expand is triggered.
   final SlideableExpandBehavior trailingFullExpandBehavior;
+
+  /// trailing 侧手势抬起且命中全展开阈值时的回调，
+  /// 参数为本次实际生效的 [SlideableExpandBehavior]。
+  /// 注意：通过 controller 调用 [SlideableCellController.openTrailingFullExpand]
+  /// 不会触发该回调。
+  /// Fired when the gesture ends past the trailing full-expand threshold.
+  /// The parameter carries the [SlideableExpandBehavior] that took effect.
+  /// Note: programmatic calls to
+  /// [SlideableCellController.openTrailingFullExpand] do not trigger this.
+  final void Function(SlideableExpandBehavior behavior)? onTrailingFullExpand;
 
   /// 背景颜色。
   /// Background color.
@@ -241,11 +261,13 @@ class SlideableCellView extends StatefulWidget {
     this.leadingFullExpandable = false,
     this.leadingFullExpandExtra = 45,
     this.leadingFullExpandBehavior = SlideableExpandBehavior.expand,
+    this.onLeadingFullExpand,
     //右边
     this.trailingActions = const [],
     this.trailingFullExpandable = false,
     this.trailingFullExpandExtra = 45,
     this.trailingFullExpandBehavior = SlideableExpandBehavior.expand,
+    this.onTrailingFullExpand,
     //打开的时候关闭其他的
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
@@ -986,7 +1008,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
         _offset > 0 &&
         leadingWidth > 0 &&
         _offset > leadingWidth + widget.leadingFullExpandExtra) {
-      switch (widget.leadingFullExpandBehavior) {
+      final behavior = widget.leadingFullExpandBehavior;
+      widget.onLeadingFullExpand?.call(behavior);
+      switch (behavior) {
         case SlideableExpandBehavior.expand:
           await _animateToLeadingFullExpand();
           return;
@@ -1005,7 +1029,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
         _offset < 0 &&
         trailingWidth > 0 &&
         (-_offset) > trailingWidth + widget.trailingFullExpandExtra) {
-      switch (widget.trailingFullExpandBehavior) {
+      final behavior = widget.trailingFullExpandBehavior;
+      widget.onTrailingFullExpand?.call(behavior);
+      switch (behavior) {
         case SlideableExpandBehavior.expand:
           await _animateToTrailingFullExpand();
           return;
