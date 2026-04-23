@@ -216,7 +216,7 @@ class SlideableCellView extends StatefulWidget {
     this.openFactor = 0.3,
     this.closeFactor = 0.3,
     this.curve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.duration = const Duration(milliseconds: 380),
+    this.duration = const Duration(milliseconds: 500),
     //左边
     this.leadingActions = const [],
     this.leadingFullExpandable = false,
@@ -745,6 +745,20 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     return _openTo(target: -_trailingActualTotalWidth);
   }
 
+  /// 动画到 leading 完全展开（视口宽度）。
+  /// Animate to leading full-expand position (viewport width).
+  Future<void> _animateToLeadingFullExpand() {
+    final double viewport = MediaQuery.sizeOf(context).width;
+    return _openTo(target: viewport);
+  }
+
+  /// 动画到 trailing 完全展开（视口宽度）。
+  /// Animate to trailing full-expand position (viewport width).
+  Future<void> _animateToTrailingFullExpand() {
+    final double viewport = MediaQuery.sizeOf(context).width;
+    return _openTo(target: -viewport);
+  }
+
   /// 动画关闭。
   /// Animate to closed position.
   Future<void> _animateToClosed() {
@@ -847,6 +861,48 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   Future<void> _onHorizontalDragEnd(DragEndDetails details) async {
     final leadingWidth = _leadingActualTotalWidth;
     final trailingWidth = _trailingActualTotalWidth;
+
+    /// 优先判断 leading 全展开触发：
+    /// 当拖动距离 > leadingWidth + leadingFullExpandExtra 时，
+    /// 根据 leadingFullExpandBehavior 分别走 expand / close / open。
+    /// Leading full-expand trigger has highest priority:
+    /// when drag distance > leadingWidth + leadingFullExpandExtra,
+    /// dispatch by leadingFullExpandBehavior (expand / close / open).
+    if (widget.leadingFullExpandable &&
+        _offset > 0 &&
+        leadingWidth > 0 &&
+        _offset > leadingWidth + widget.leadingFullExpandExtra) {
+      switch (widget.leadingFullExpandBehavior) {
+        case SlideableExpandBehavior.expand:
+          await _animateToLeadingFullExpand();
+          return;
+        case SlideableExpandBehavior.close:
+          await _animateToClosed();
+          return;
+        case SlideableExpandBehavior.open:
+          await _animateToLeadingOpen();
+          return;
+      }
+    }
+
+    /// 优先判断 trailing 全展开触发，规则与 leading 对称。
+    /// Trailing full-expand trigger, symmetric to leading.
+    if (widget.trailingFullExpandable &&
+        _offset < 0 &&
+        trailingWidth > 0 &&
+        (-_offset) > trailingWidth + widget.trailingFullExpandExtra) {
+      switch (widget.trailingFullExpandBehavior) {
+        case SlideableExpandBehavior.expand:
+          await _animateToTrailingFullExpand();
+          return;
+        case SlideableExpandBehavior.close:
+          await _animateToClosed();
+          return;
+        case SlideableExpandBehavior.open:
+          await _animateToTrailingOpen();
+          return;
+      }
+    }
 
     if (_offset > 0 && leadingWidth > 0 && _offset > leadingWidth) {
       await _animateToLeadingOpen();
