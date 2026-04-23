@@ -9,9 +9,9 @@ class SlideableCellController {
   /// All registered entries.
   final Map<ValueKey, _SlideableCellControllerEntry> _entries = <ValueKey, _SlideableCellControllerEntry>{};
 
-  /// 当前的所有状态。
+  /// 当前的所有状态缓存。
   /// All cached statuses.
-  final Map<ValueKey, SlideableCellStatus> _status = <ValueKey, SlideableCellStatus>{};
+  final Map<ValueKey, SlideableCellStatus> _statusMap = <ValueKey, SlideableCellStatus>{};
 
   /// 通用查找方法：
   /// 先按 key 直接查，再按 key.value 查。
@@ -39,7 +39,7 @@ class SlideableCellController {
   /// 找到相应的状态。
   /// Finds the matching status.
   SlideableCellStatus _findStatus(ValueKey key) {
-    return _findByValueKey(_status, key) ?? SlideableCellStatus.closed;
+    return _findByValueKey(_statusMap, key) ?? SlideableCellStatus.closed;
   }
 
   /// 注册一个可控制的 Cell 实例。
@@ -50,7 +50,7 @@ class SlideableCellController {
     SlideableCellStatus initialStatus,
   ) {
     _entries[key] = entry;
-    _status[key] = initialStatus;
+    _statusMap[key] = initialStatus;
   }
 
   /// 仅在 entry 与当前注册项一致时移除，避免误删。
@@ -59,14 +59,14 @@ class SlideableCellController {
     final current = _entries[key];
     if (identical(current, entry)) {
       _entries.remove(key);
-      _status.remove(key);
+      _statusMap.remove(key);
     }
   }
 
   /// 更新指定 key 对应 item 的状态缓存。
   /// Updates cached open/close status for an item key.
   void _updateStatus(ValueKey key, SlideableCellStatus status) {
-    _status[key] = status;
+    _statusMap[key] = status;
   }
 
   /// 获取指定 key 的当前状态，默认关闭。
@@ -78,14 +78,13 @@ class SlideableCellController {
   /// 是否处于任一打开状态（左开或右开）。
   /// Whether the cell is currently opened on either side.
   bool isOpen(ValueKey key) {
-    final status = statusOf(key);
-    return status == SlideableCellStatus.leadingOpen || status == SlideableCellStatus.trailingOpen;
+    return _isOpenedStatus(statusOf(key));
   }
 
   /// 全量状态快照（只读）。
   /// Read-only snapshot for all item statuses.
   Map<ValueKey, SlideableCellStatus> get statuses {
-    return Map<ValueKey, SlideableCellStatus>.unmodifiable(_status);
+    return Map<ValueKey, SlideableCellStatus>.unmodifiable(_statusMap);
   }
 
   /// 打开左方。
@@ -115,6 +114,12 @@ class SlideableCellController {
         .map((fn) => fn())
         .toList(growable: false);
     await Future.wait<void>(futures);
+  }
+
+  /// 是否为打开状态。
+  /// Whether the status is opened.
+  static bool _isOpenedStatus(SlideableCellStatus status) {
+    return status == SlideableCellStatus.leadingOpen || status == SlideableCellStatus.trailingOpen;
   }
 }
 
@@ -288,97 +293,12 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// Whether width collection has been scheduled.
   bool _widthCollectScheduled = false;
 
-  /// 初始化控制器。
-  /// Initializes animation controllers.
-  void _initController() {
-    _snapAnimationController = AnimationController(vsync: this);
-
-    /// 头部动画控制。
-    /// Leading expand controller.
-    _expandLeadingController = AnimationController(
-      vsync: this,
-      duration: widget.leadingExpandDuration,
-      reverseDuration: widget.leadingExpandDuration,
-      lowerBound: 0.0,
-      upperBound: 1.0,
-    );
-    _expandLeadingAnimation = CurvedAnimation(
-      parent: _expandLeadingController,
-      curve: widget.leadingExpandCurve,
-      reverseCurve: widget.leadingExpandCurve.flipped,
-    );
-
-    /// 尾部动画控制。
-    /// Trailing expand controller.
-    _expandTrailingController = AnimationController(
-      vsync: this,
-      duration: widget.trailingExpandDuration,
-      reverseDuration: widget.trailingExpandDuration,
-      lowerBound: 0.0,
-      upperBound: 1.0,
-    );
-    _expandTrailingAnimation = CurvedAnimation(
-      parent: _expandTrailingController,
-      curve: widget.trailingExpandCurve,
-      reverseCurve: widget.trailingExpandCurve.flipped,
-    );
-
-    /// 设置监听。
-    /// Add listeners for rebuild.
-    _expandLeadingController.addListener(() {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-    _expandTrailingController.addListener(() {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  /// 左侧 forward。
-  /// Forward leading expand animation.
-  void _leadingForward() {
-    if (_leadingForwarding == false) {
-      _leadingForwarding = true;
-      _expandLeadingController.forward(from: _expandLeadingController.value);
-    }
-  }
-
-  /// 左侧 reverse。
-  /// Reverse leading expand animation.
-  void _leadingReverse() {
-    if (_leadingForwarding == true) {
-      _leadingForwarding = false;
-      _expandLeadingController.reverse(from: _expandLeadingController.value);
-    }
-  }
-
-  /// 右侧 forward。
-  /// Forward trailing expand animation.
-  void _trailingForward() {
-    if (_trailingForwarding == false) {
-      _trailingForwarding = true;
-      _expandTrailingController.forward(from: _expandTrailingController.value);
-    }
-  }
-
-  /// 右侧 reverse。
-  /// Reverse trailing expand animation.
-  void _trailingReverse() {
-    if (_trailingForwarding == true) {
-      _trailingForwarding = false;
-      _expandTrailingController.reverse(from: _expandTrailingController.value);
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    _initController();
+    _initAnimationControllers();
     _recreateActionKeys();
-    _resizeActualWidths();
+    _resetActualWidthsCache();
     _bindController();
     _scheduleCollectActionWidths();
   }
@@ -387,12 +307,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   void didUpdateWidget(covariant SlideableCellView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    /// 如果 action 数量不一致，做完全重建并重新测量宽度。
-    /// Recreate keys and width cache when action counts change.
+    /// action 数量变化时需要重建 key 和缓存；
+    /// 即使数量不变，也仍然重新测量一次，兼容内容宽度变化。
+    /// Recreate keys/cache when action counts change;
+    /// even if counts stay the same, still re-measure to support width changes.
     if (oldWidget.leadingActions.length != widget.leadingActions.length ||
         oldWidget.trailingActions.length != widget.trailingActions.length) {
       _recreateActionKeys();
-      _resizeActualWidths();
+      _resetActualWidthsCache();
     }
     _scheduleCollectActionWidths();
 
@@ -411,6 +333,85 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     _expandLeadingController.dispose();
     _expandTrailingController.dispose();
     super.dispose();
+  }
+
+  /// 初始化动画控制器。
+  /// Initializes animation controllers.
+  void _initAnimationControllers() {
+    _snapAnimationController = AnimationController(vsync: this);
+
+    _expandLeadingController = AnimationController(
+      vsync: this,
+      duration: widget.leadingExpandDuration,
+      reverseDuration: widget.leadingExpandDuration,
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _expandLeadingAnimation = CurvedAnimation(
+      parent: _expandLeadingController,
+      curve: widget.leadingExpandCurve,
+      reverseCurve: widget.leadingExpandCurve.flipped,
+    );
+
+    _expandTrailingController = AnimationController(
+      vsync: this,
+      duration: widget.trailingExpandDuration,
+      reverseDuration: widget.trailingExpandDuration,
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _expandTrailingAnimation = CurvedAnimation(
+      parent: _expandTrailingController,
+      curve: widget.trailingExpandCurve,
+      reverseCurve: widget.trailingExpandCurve.flipped,
+    );
+
+    _expandLeadingController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+    _expandTrailingController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  /// 左侧 expand forward。
+  /// Forward leading expand animation.
+  void _forwardLeadingExpand() {
+    if (_leadingForwarding == false) {
+      _leadingForwarding = true;
+      _expandLeadingController.forward(from: _expandLeadingController.value);
+    }
+  }
+
+  /// 左侧 expand reverse。
+  /// Reverse leading expand animation.
+  void _reverseLeadingExpand() {
+    if (_leadingForwarding == true) {
+      _leadingForwarding = false;
+      _expandLeadingController.reverse(from: _expandLeadingController.value);
+    }
+  }
+
+  /// 右侧 expand forward。
+  /// Forward trailing expand animation.
+  void _forwardTrailingExpand() {
+    if (_trailingForwarding == false) {
+      _trailingForwarding = true;
+      _expandTrailingController.forward(from: _expandTrailingController.value);
+    }
+  }
+
+  /// 右侧 expand reverse。
+  /// Reverse trailing expand animation.
+  void _reverseTrailingExpand() {
+    if (_trailingForwarding == true) {
+      _trailingForwarding = false;
+      _expandTrailingController.reverse(from: _expandTrailingController.value);
+    }
   }
 
   /// 安排一次 post-frame 宽度收集，避免 build 中重复注册。
@@ -443,9 +444,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     );
   }
 
-  /// 按 action 数量初始化宽度缓存。
-  /// Initializes width cache with action counts.
-  void _resizeActualWidths() {
+  /// 按 action 数量重置宽度缓存。
+  /// Resets width cache with action counts.
+  void _resetActualWidthsCache() {
     _leadingActionActualWidths
       ..clear()
       ..addAll(List<double>.filled(widget.leadingActions.length, 0));
@@ -478,27 +479,35 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// 收集 action 实际宽度并在变化时刷新。
   /// Collects real action widths and triggers rebuild if changed.
   void _collectActionWidths() {
-    var changed = false;
+    final changedLeading = _collectWidthsFor(
+      keys: _leadingActionKeys,
+      widths: _leadingActionActualWidths,
+    );
+    final changedTrailing = _collectWidthsFor(
+      keys: _trailingActionKeys,
+      widths: _trailingActionActualWidths,
+    );
 
-    for (var i = 0; i < _leadingActionKeys.length; i++) {
-      final width = _readWidth(_leadingActionKeys[i]);
-      if (width > 0 && _leadingActionActualWidths[i] != width) {
-        _leadingActionActualWidths[i] = width;
-        changed = true;
-      }
-    }
-
-    for (var i = 0; i < _trailingActionKeys.length; i++) {
-      final width = _readWidth(_trailingActionKeys[i]);
-      if (width > 0 && _trailingActionActualWidths[i] != width) {
-        _trailingActionActualWidths[i] = width;
-        changed = true;
-      }
-    }
-
-    if (changed && mounted) {
+    if ((changedLeading || changedTrailing) && mounted) {
       setState(() {});
     }
+  }
+
+  /// 收集一组 action 的实际宽度。
+  /// Collects actual widths for a group of actions.
+  bool _collectWidthsFor({
+    required List<GlobalKey> keys,
+    required List<double> widths,
+  }) {
+    var changed = false;
+    for (var i = 0; i < keys.length; i++) {
+      final width = _readWidth(keys[i]);
+      if (width > 0 && widths[i] != width) {
+        widths[i] = width;
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   /// 从 key 对应渲染对象读取宽度。
@@ -519,13 +528,11 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// Calculates extra expandWidth for leading edge item.
   ///
   /// 规则：
-  /// 其他 item 的 itemWidth 之和 * 动画参数。
+  /// 其他 item 的实际宽度之和 * 动画参数。
   /// Rule:
-  /// sum(other item widths) * animation value.
-  double _leadingEdgeExpandWidth({
+  /// sum(other item actual widths) * animation value.
+  double _computeLeadingEdgeExpandWidth({
     required int edgeIndex,
-    required double leadingWidth,
-    required double totalActualWidth,
   }) {
     if (!widget.leadingFullExpandable) {
       return 0;
@@ -536,6 +543,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     if (widget.leadingActions.isEmpty) {
       return 0;
     }
+
     double otherWidthSum = 0;
     for (int i = 0; i < widget.leadingActions.length; i++) {
       if (i == edgeIndex) {
@@ -546,8 +554,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     return otherWidthSum * _expandLeadingAnimation.value;
   }
 
-  ///左侧everyExpandWidth
-  double _leadingEveryExpandWidth({
+  /// 计算 leading 在 everyItem 模式下边缘 item 的额外 expandWidth。
+  /// Calculates extra expandWidth for leading edge item in everyItem mode.
+  ///
+  /// 规则：
+  /// 其他 item 的按比例宽度之和 * 动画参数。
+  /// Rule:
+  /// sum(other item proportional widths) * animation value.
+  double _computeLeadingEveryItemExpandWidth({
     required int edgeIndex,
     required double leadingWidth,
     required double totalActualWidth,
@@ -564,6 +578,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     if (totalActualWidth <= 0) {
       return 0;
     }
+
     double otherWidthSum = 0;
     for (int i = 0; i < widget.leadingActions.length; i++) {
       if (i == edgeIndex) {
@@ -578,13 +593,11 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// Calculates extra expandWidth for trailing edge item.
   ///
   /// 规则：
-  /// 其他 item 的 itemWidth 之和 * 动画参数。
+  /// 其他 item 的实际宽度之和 * 动画参数。
   /// Rule:
-  /// sum(other item widths) * animation value.
-  double _trailingEdgeExpandWidth({
+  /// sum(other item actual widths) * animation value.
+  double _computeTrailingEdgeExpandWidth({
     required int edgeIndex,
-    required double trailingWidth,
-    required double totalActualWidth,
   }) {
     if (!widget.trailingFullExpandable) {
       return 0;
@@ -595,6 +608,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     if (widget.trailingActions.isEmpty) {
       return 0;
     }
+
     double otherWidthSum = 0;
     for (int i = 0; i < widget.trailingActions.length; i++) {
       if (i == edgeIndex) {
@@ -605,8 +619,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     return otherWidthSum * _expandTrailingAnimation.value;
   }
 
-  ///右侧everyExpandWidth
-  double _trailingEveryExpandWidth({
+  /// 计算 trailing 在 everyItem 模式下边缘 item 的额外 expandWidth。
+  /// Calculates extra expandWidth for trailing edge item in everyItem mode.
+  ///
+  /// 规则：
+  /// 其他 item 的按比例宽度之和 * 动画参数。
+  /// Rule:
+  /// sum(other item proportional widths) * animation value.
+  double _computeTrailingEveryItemExpandWidth({
     required int edgeIndex,
     required double trailingWidth,
     required double totalActualWidth,
@@ -623,6 +643,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     if (totalActualWidth <= 0) {
       return 0;
     }
+
     double otherWidthSum = 0;
     for (int i = 0; i < widget.trailingActions.length; i++) {
       if (i == edgeIndex) {
@@ -635,6 +656,11 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
 
   /// 根据偏移量刷新控制器中的状态缓存。
   /// Syncs status cache in controller from current offset.
+  ///
+  /// 状态缓存只在动画落点完成后更新，
+  /// 拖动中的中间态不写入 controller。
+  /// Status cache is updated only after animation settles;
+  /// intermediate dragging states are not written into controller.
   void _updateStatusByOffset() {
     final nextStatus = _offset.abs() < 0.0001
         ? SlideableCellStatus.closed
@@ -648,6 +674,11 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
 
   /// 执行偏移动画（统一入口）。
   /// Unified animation entry for offset transitions.
+  ///
+  /// 每次按当前 offset 到目标值创建一次临时动画，
+  /// 避免持有长期 tween 状态。
+  /// Creates a temporary tween from current offset to target each time,
+  /// avoiding long-lived tween state.
   Future<void> _animateTo(double target) async {
     if (!mounted) {
       return;
@@ -714,12 +745,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   Future<void> _openTo({required double target}) async {
     if (widget.closeOthersWhenOpen) {
       await Future.wait([
-        /// 关闭其他的。
-        /// Close others.
         _closeOtherOpenedCells(),
-
-        /// 打开到指定位置。
-        /// Animate to target.
         _animateTo(target),
       ]);
     } else {
@@ -733,18 +759,44 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     return a.value == b.value;
   }
 
+  /// 是否为打开状态。
+  /// Whether the status is opened.
+  bool _isOpenedStatus(SlideableCellStatus status) {
+    return status == SlideableCellStatus.leadingOpen || status == SlideableCellStatus.trailingOpen;
+  }
+
+  /// 是否为 leading 边缘 item。
+  /// Whether the index is the leading edge item.
+  bool _isLeadingEdgeIndex(int index) {
+    return index == widget.leadingActions.length - 1;
+  }
+
+  /// 是否为 trailing 边缘 item。
+  /// Whether the index is the trailing edge item.
+  bool _isTrailingEdgeIndex(int index) {
+    return index == widget.trailingActions.length - 1;
+  }
+
+  /// 按比例计算 item 宽度。
+  /// Calculates proportional item width.
+  double _proportionalWidth({
+    required double visibleWidth,
+    required double currentActualWidth,
+    required double totalActualWidth,
+    required int itemCount,
+  }) {
+    return totalActualWidth > 0 ? visibleWidth * (currentActualWidth / totalActualWidth) : visibleWidth / itemCount;
+  }
+
   /// 关闭其他已打开的 items。
   /// Closes other opened items.
   Future<void> _closeOtherOpenedCells() async {
-    final statusEntries = widget.controller.statuses.entries.toList(
-      growable: false,
-    );
+    final statusEntries = widget.controller.statuses.entries.toList(growable: false);
     final futures = <Future<void>>[];
 
     for (final entry in statusEntries) {
       final bool isCurrentCell = _sameCellKey(entry.key, widget.cellKey);
-      final bool isOpened =
-          entry.value == SlideableCellStatus.leadingOpen || entry.value == SlideableCellStatus.trailingOpen;
+      final bool isOpened = _isOpenedStatus(entry.value);
 
       if (!isCurrentCell && isOpened) {
         futures.add(widget.controller.closeCell(entry.key));
@@ -785,22 +837,16 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     final leadingWidth = _leadingActualTotalWidth;
     final trailingWidth = _trailingActualTotalWidth;
 
-    /// 左侧超出真实宽度时，优先回弹到真实宽度。
-    /// If leading side exceeds actual width, snap back to actual width first.
     if (_offset > 0 && leadingWidth > 0 && _offset > leadingWidth) {
       await _animateToLeadingOpen();
       return;
     }
 
-    /// 右侧超出真实宽度时，优先回弹到真实宽度。
-    /// If trailing side exceeds actual width, snap back to actual width first.
     if (_offset < 0 && trailingWidth > 0 && (-_offset) > trailingWidth) {
       await _animateToTrailingOpen();
       return;
     }
 
-    /// 如果当前是关闭状态。
-    /// If current status is closed.
     if (_status == SlideableCellStatus.closed) {
       if (_offset > 0 && leadingWidth > 0) {
         final factor = _offset / leadingWidth;
@@ -822,8 +868,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       return;
     }
 
-    /// 如果当前是左侧打开。
-    /// If current status is leading-open.
     if (_status == SlideableCellStatus.leadingOpen) {
       if (_offset <= 0 || leadingWidth <= 0) {
         await _animateToClosed();
@@ -841,8 +885,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       return;
     }
 
-    /// 如果当前是右侧打开。
-    /// If current status is trailing-open.
     if (_offset >= 0 || trailingWidth <= 0) {
       await _animateToClosed();
       return;
@@ -889,13 +931,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
 
   /// 提取 child 的颜色。
   /// Extracts background color from action child.
-  Color? _getChildColor(Widget child) {
-    if (child is SlideableActionItem) {
-      return child.slideBackgroundColor;
-    } else {
-      return null;
-    }
-  }
+  Color? _getChildColor(Widget child) => child is SlideableActionItem ? child.slideBackgroundColor : null;
 
   /// 构建通用 action item 容器。
   /// Builds a common action item container.
@@ -925,6 +961,56 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     );
   }
 
+  /// 构建可扩展边缘 item。
+  /// Builds an expandable edge item.
+  Widget _buildExpandableEdgeItem({
+    required double viewportWidth,
+    required double contentWidth,
+    required double overflowMaxWidth,
+    required Widget actionChild,
+    required GlobalKey globalKey,
+    required Alignment alignment,
+    Offset offset = Offset.zero,
+    CustomClipper<Rect>? clipper,
+  }) {
+    Widget child = SizedBox(
+      width: viewportWidth,
+      child: OverflowBox(
+        minWidth: viewportWidth,
+        maxWidth: overflowMaxWidth,
+        alignment: alignment,
+        child: Container(
+          width: contentWidth,
+          color: _getChildColor(actionChild),
+          child: UnconstrainedBox(
+            constrainedAxis: Axis.vertical,
+            alignment: alignment,
+            child: KeyedSubtree(
+              key: globalKey,
+              child: actionChild,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (clipper != null) {
+      child = ClipRect(
+        clipper: clipper,
+        child: child,
+      );
+    }
+
+    if (offset != Offset.zero) {
+      child = Transform.translate(
+        offset: offset,
+        child: child,
+      );
+    }
+
+    return child;
+  }
+
   /// 构建左侧 actions 区域。
   /// Builds leading action area.
   Widget _buildLeading() {
@@ -932,27 +1018,16 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       return const SizedBox.shrink();
     }
 
-    /// 计算左边的宽度。
-    /// Current visible width of leading side.
     final double leadingWidth = _offset.clamp(0.0, double.infinity);
-
-    /// 左侧实际总宽度。
-    /// Total actual width of leading actions.
     final double totalActualWidth = _leadingActualTotalWidth;
 
-    /// 如果左侧支持全展开。
-    /// If leading side supports full expansion.
     if (widget.leadingFullExpandable) {
-      /// 处理 expand 展开/收起触发。
-      /// Handle expand forward/reverse trigger.
       if (leadingWidth > totalActualWidth + widget.leadingFullExpandExtra) {
-        _leadingForward();
+        _forwardLeadingExpand();
       } else {
-        _leadingReverse();
+        _reverseLeadingExpand();
       }
 
-      /// 如果已经大于真实宽度，但是小于触发宽度。
-      /// If width exceeds actual width, use full-expand layout.
       if (leadingWidth > totalActualWidth) {
         return Positioned(
           left: 0,
@@ -970,78 +1045,40 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                   final GlobalKey globalKey = _leadingActionKeys[index];
                   final Widget actionChild = widget.leadingActions[index];
 
-                  double itemWidth;
-
-                  /// 对最后 1 条做处理，计算相应 item 的宽度。
-                  /// Handle the edge item width for full expansion.
-                  if (index == widget.leadingActions.length - 1) {
-                    ///拖动距离
+                  if (_isLeadingEdgeIndex(index)) {
                     final double dragWidth = leadingWidth - totalActualWidth;
-
-                    ///展开距离
                     final double expandWidth = (totalActualWidth - currentActualWidth) * _expandLeadingAnimation.value;
-
-                    ///真实宽度
-                    itemWidth = dragWidth + currentActualWidth;
+                    final double itemWidth = dragWidth + currentActualWidth;
 
                     switch (widget.expandMode) {
                       case SlideableCellExpandMode.adjustEdge:
-                        return Transform.translate(
+                        return _buildExpandableEdgeItem(
+                          viewportWidth: itemWidth,
+                          contentWidth: itemWidth + expandWidth,
+                          overflowMaxWidth: itemWidth + expandWidth,
+                          actionChild: actionChild,
+                          globalKey: globalKey,
+                          alignment: Alignment.centerRight,
                           offset: Offset(expandWidth, 0),
-                          child: SizedBox(
-                            width: itemWidth,
-                            child: OverflowBox(
-                              minWidth: itemWidth,
-                              maxWidth: itemWidth + expandWidth,
-                              alignment: Alignment.centerRight,
-                              child: Container(
-                                width: itemWidth + expandWidth,
-                                color: _getChildColor(actionChild),
-                                child: UnconstrainedBox(
-                                  constrainedAxis: Axis.vertical,
-                                  alignment: Alignment.centerRight,
-                                  child: KeyedSubtree(
-                                    key: globalKey,
-                                    child: actionChild,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                         );
                       case SlideableCellExpandMode.everyItem:
-                        return Transform.translate(
+                        return _buildExpandableEdgeItem(
+                          viewportWidth: itemWidth,
+                          contentWidth: itemWidth + expandWidth,
+                          overflowMaxWidth: itemWidth + expandWidth,
+                          actionChild: actionChild,
+                          globalKey: globalKey,
+                          alignment: Alignment.center,
                           offset: Offset(expandWidth / 2, 0),
-                          child: SizedBox(
-                            width: itemWidth,
-                            child: OverflowBox(
-                              minWidth: itemWidth,
-                              maxWidth: itemWidth + expandWidth,
-                              alignment: Alignment.center,
-                              child: Container(
-                                width: itemWidth + expandWidth,
-                                color: _getChildColor(actionChild),
-                                child: UnconstrainedBox(
-                                  constrainedAxis: Axis.vertical,
-                                  alignment: Alignment.center,
-                                  child: KeyedSubtree(
-                                    key: globalKey,
-                                    child: actionChild,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                         );
                     }
-                  } else {
-                    itemWidth = currentActualWidth;
-                    return _buildActionItemContainer(
-                      width: itemWidth,
-                      actionChild: actionChild,
-                      globalKey: globalKey,
-                    );
                   }
+
+                  return _buildActionItemContainer(
+                    width: currentActualWidth,
+                    actionChild: actionChild,
+                    globalKey: globalKey,
+                  );
                 },
                 growable: false,
               ),
@@ -1066,54 +1103,42 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                 widget.leadingActions.length,
                 (index) {
                   final double currentActualWidth = _leadingActionActualWidths[index];
-
-                  /// 以比例进行均分。
-                  /// Distribute width proportionally.
-                  final double itemWidth = totalActualWidth > 0
-                      ? leadingWidth * (currentActualWidth / totalActualWidth)
-                      : leadingWidth / widget.leadingActions.length;
+                  final double itemWidth = _proportionalWidth(
+                    visibleWidth: leadingWidth,
+                    currentActualWidth: currentActualWidth,
+                    totalActualWidth: totalActualWidth,
+                    itemCount: widget.leadingActions.length,
+                  );
 
                   final GlobalKey globalKey = _leadingActionKeys[index];
                   final Widget actionChild = widget.leadingActions[index];
 
-                  /// 这里帮我分析下后补齐
-                  if (widget.leadingFullExpandable && index == widget.leadingActions.length - 1) {
-                    final double expandWidth = _leadingEveryExpandWidth(
+                  /// 在 everyItem 模式下，如果 full-expand 动画仍在进行，
+                  /// 对边缘 item 做平滑过渡，避免从 full-expand 回落时出现跳变。
+                  /// In everyItem mode, keep smooth transition for the edge item
+                  /// while full-expand animation is still active.
+                  if (widget.leadingFullExpandable && _isLeadingEdgeIndex(index)) {
+                    final double expandWidth = _computeLeadingEveryItemExpandWidth(
                       edgeIndex: index,
                       leadingWidth: leadingWidth,
                       totalActualWidth: totalActualWidth,
                     );
-                    final double currentActualWidth = _leadingActionActualWidths[index];
-                    return Transform.translate(
+
+                    return _buildExpandableEdgeItem(
+                      viewportWidth: itemWidth,
+                      contentWidth: currentActualWidth + expandWidth,
+                      overflowMaxWidth: currentActualWidth + expandWidth,
+                      actionChild: actionChild,
+                      globalKey: globalKey,
+                      alignment: Alignment.center,
                       offset: Offset(expandWidth / 2, 0),
-                      child: ClipRect(
-                        clipper: ClipHorizontalRect(
-                          clipLeft: -(expandWidth / 2),
-                          clipRight: -(expandWidth / 2),
-                        ),
-                        child: SizedBox(
-                          width: itemWidth,
-                          child: OverflowBox(
-                            minWidth: itemWidth,
-                            maxWidth: currentActualWidth + expandWidth,
-                            alignment: Alignment.center,
-                            child: Container(
-                              width: currentActualWidth + expandWidth,
-                              color: _getChildColor(actionChild),
-                              child: UnconstrainedBox(
-                                constrainedAxis: Axis.vertical,
-                                alignment: Alignment.center,
-                                child: KeyedSubtree(
-                                  key: globalKey,
-                                  child: actionChild,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      clipper: ClipHorizontalRect(
+                        clipLeft: -(expandWidth / 2),
+                        clipRight: -(expandWidth / 2),
                       ),
                     );
                   }
+
                   return ClipRect(
                     child: _buildActionItemContainer(
                       width: itemWidth,
@@ -1129,9 +1154,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
         );
 
       case SlideableCellExpandMode.adjustEdge:
-
-        /// 如果大于了真实宽度，也使用 everyItem 的均分模式。
-        /// If width exceeds actual width, also use proportional mode.
         final bool shouldUseProportionalWidth = totalActualWidth > 0 && leadingWidth > totalActualWidth;
 
         return Positioned(
@@ -1164,51 +1186,30 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                           globalKey: globalKey,
                         ),
                       );
-                    } else {
-                      /// 在 adjustEdge 且未超过真实宽度时，
-                      /// 如果 full-expand 动画仍在进行，则对边缘 item 做平滑过渡。
-                      /// In adjustEdge mode and width <= actual width,
-                      /// keep smooth transition for edge item if full-expand animation is active.
-                      if (widget.leadingFullExpandable && index == widget.leadingActions.length - 1) {
-                        final double itemWidth = _leadingActionActualWidths[index];
-                        final double expandWidth = _leadingEdgeExpandWidth(
-                          edgeIndex: index,
-                          leadingWidth: leadingWidth,
-                          totalActualWidth: totalActualWidth,
-                        );
-                        return Transform.translate(
-                          offset: Offset(expandWidth, 0),
-                          child: SizedBox(
-                            width: itemWidth,
-                            child: OverflowBox(
-                              minWidth: itemWidth,
-                              maxWidth: itemWidth + expandWidth,
-                              alignment: Alignment.centerRight,
-                              child: Container(
-                                width: itemWidth + expandWidth,
-                                color: _getChildColor(actionChild),
-                                child: UnconstrainedBox(
-                                  constrainedAxis: Axis.vertical,
-                                  alignment: Alignment.centerRight,
-                                  child: KeyedSubtree(
-                                    key: globalKey,
-                                    child: actionChild,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }
+                    }
 
-                      return Container(
-                        color: _getChildColor(actionChild),
-                        child: KeyedSubtree(
-                          key: globalKey,
-                          child: actionChild,
-                        ),
+                    if (widget.leadingFullExpandable && _isLeadingEdgeIndex(index)) {
+                      final double itemWidth = _leadingActionActualWidths[index];
+                      final double expandWidth = _computeLeadingEdgeExpandWidth(
+                        edgeIndex: index,
+                      );
+                      return _buildExpandableEdgeItem(
+                        viewportWidth: itemWidth,
+                        contentWidth: itemWidth + expandWidth,
+                        overflowMaxWidth: itemWidth + expandWidth,
+                        actionChild: actionChild,
+                        globalKey: globalKey,
+                        alignment: Alignment.centerRight,
+                        offset: Offset(expandWidth, 0),
                       );
                     }
+                    return Container(
+                      color: _getChildColor(actionChild),
+                      child: KeyedSubtree(
+                        key: globalKey,
+                        child: actionChild,
+                      ),
+                    );
                   },
                   growable: false,
                 ),
@@ -1226,31 +1227,18 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       return const SizedBox.shrink();
     }
 
-    /// 计算右边的宽度。
-    /// Current visible width of trailing side.
     double trailingWidth = _offset < 0 ? -_offset : 0.0;
-
-    /// 限制宽度非负。
-    /// Clamp width to non-negative.
     trailingWidth = trailingWidth.clamp(0.0, double.infinity);
 
-    /// 右侧实际总宽度。
-    /// Total actual width of trailing actions.
     final double totalActualWidth = _trailingActualTotalWidth;
 
-    /// 如果右侧支持全展开。
-    /// If trailing side supports full expansion.
     if (widget.trailingFullExpandable) {
-      /// 处理 expand 展开/收起触发。
-      /// Handle expand forward/reverse trigger.
       if (trailingWidth > totalActualWidth + widget.trailingFullExpandExtra) {
-        _trailingForward();
+        _forwardTrailingExpand();
       } else {
-        _trailingReverse();
+        _reverseTrailingExpand();
       }
 
-      /// 如果已经大于真实宽度，但是小于触发宽度。
-      /// If width exceeds actual width, use full-expand layout.
       if (trailingWidth > totalActualWidth) {
         return Positioned(
           right: 0,
@@ -1266,73 +1254,41 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                   final double currentActualWidth = _trailingActionActualWidths[index];
                   final GlobalKey globalKey = _trailingActionKeys[index];
                   final Widget actionChild = widget.trailingActions[index];
-                  double itemWidth;
 
-                  /// 对最后 1 条做处理，计算相应 item 的宽度。
-                  /// Handle the edge item width for full expansion.
-                  if (index == widget.trailingActions.length - 1) {
+                  if (_isTrailingEdgeIndex(index)) {
                     final double dragWidth = trailingWidth - totalActualWidth;
                     final double expandWidth = (totalActualWidth - currentActualWidth) * _expandTrailingAnimation.value;
-                    itemWidth = dragWidth + currentActualWidth;
+                    final double itemWidth = dragWidth + currentActualWidth;
 
                     switch (widget.expandMode) {
                       case SlideableCellExpandMode.adjustEdge:
-                        return Transform.translate(
+                        return _buildExpandableEdgeItem(
+                          viewportWidth: itemWidth,
+                          contentWidth: itemWidth + expandWidth,
+                          overflowMaxWidth: itemWidth + expandWidth,
+                          actionChild: actionChild,
+                          globalKey: globalKey,
+                          alignment: Alignment.centerLeft,
                           offset: Offset(-expandWidth, 0),
-                          child: SizedBox(
-                            width: itemWidth,
-                            child: OverflowBox(
-                              minWidth: itemWidth,
-                              maxWidth: itemWidth + expandWidth,
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                width: itemWidth + expandWidth,
-                                color: _getChildColor(actionChild),
-                                child: UnconstrainedBox(
-                                  constrainedAxis: Axis.vertical,
-                                  alignment: Alignment.centerLeft,
-                                  child: KeyedSubtree(
-                                    key: globalKey,
-                                    child: actionChild,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                         );
                       case SlideableCellExpandMode.everyItem:
-                        return Transform.translate(
+                        return _buildExpandableEdgeItem(
+                          viewportWidth: itemWidth,
+                          contentWidth: itemWidth + expandWidth,
+                          overflowMaxWidth: itemWidth + expandWidth,
+                          actionChild: actionChild,
+                          globalKey: globalKey,
+                          alignment: Alignment.center,
                           offset: Offset(-expandWidth / 2, 0),
-                          child: SizedBox(
-                            width: itemWidth,
-                            child: OverflowBox(
-                              minWidth: itemWidth,
-                              maxWidth: itemWidth + expandWidth,
-                              alignment: Alignment.center,
-                              child: Container(
-                                width: itemWidth + expandWidth,
-                                color: _getChildColor(actionChild),
-                                child: UnconstrainedBox(
-                                  constrainedAxis: Axis.vertical,
-                                  alignment: Alignment.center,
-                                  child: KeyedSubtree(
-                                    key: globalKey,
-                                    child: actionChild,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                         );
                     }
-                  } else {
-                    itemWidth = currentActualWidth;
-                    return _buildActionItemContainer(
-                      width: itemWidth,
-                      actionChild: actionChild,
-                      globalKey: globalKey,
-                    );
                   }
+
+                  return _buildActionItemContainer(
+                    width: currentActualWidth,
+                    actionChild: actionChild,
+                    globalKey: globalKey,
+                  );
                 },
                 growable: false,
               ),
@@ -1356,51 +1312,38 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                 widget.trailingActions.length,
                 (index) {
                   final double currentActualWidth = _trailingActionActualWidths[index];
-
-                  /// 使用比例进行均分。
-                  /// Distribute width proportionally.
-                  final double itemWidth = totalActualWidth > 0
-                      ? trailingWidth * (currentActualWidth / totalActualWidth)
-                      : trailingWidth / widget.trailingActions.length;
+                  final double itemWidth = _proportionalWidth(
+                    visibleWidth: trailingWidth,
+                    currentActualWidth: currentActualWidth,
+                    totalActualWidth: totalActualWidth,
+                    itemCount: widget.trailingActions.length,
+                  );
 
                   final GlobalKey globalKey = _trailingActionKeys[index];
                   final Widget actionChild = widget.trailingActions[index];
 
-                  /// 这里帮我分析下后补齐
-                  if (widget.trailingFullExpandable && index == widget.trailingActions.length - 1) {
-                    final double expandWidth = _trailingEveryExpandWidth(
+                  /// 在 everyItem 模式下，如果 full-expand 动画仍在进行，
+                  /// 对边缘 item 做平滑过渡，避免从 full-expand 回落时出现跳变。
+                  /// In everyItem mode, keep smooth transition for the edge item
+                  /// while full-expand animation is still active.
+                  if (widget.trailingFullExpandable && _isTrailingEdgeIndex(index)) {
+                    final double expandWidth = _computeTrailingEveryItemExpandWidth(
                       edgeIndex: index,
                       trailingWidth: trailingWidth,
                       totalActualWidth: totalActualWidth,
                     );
-                    final double currentActualWidth = _trailingActionActualWidths[index];
-                    return Transform.translate(
+
+                    return _buildExpandableEdgeItem(
+                      viewportWidth: itemWidth,
+                      contentWidth: currentActualWidth + expandWidth,
+                      overflowMaxWidth: currentActualWidth + expandWidth,
+                      actionChild: actionChild,
+                      globalKey: globalKey,
+                      alignment: Alignment.center,
                       offset: Offset(-expandWidth / 2, 0),
-                      child: ClipRect(
-                        clipper: ClipHorizontalRect(
-                          clipLeft: -(expandWidth / 2),
-                          clipRight: -(expandWidth / 2),
-                        ),
-                        child: SizedBox(
-                          width: itemWidth,
-                          child: OverflowBox(
-                            minWidth: itemWidth,
-                            maxWidth: currentActualWidth + expandWidth,
-                            alignment: Alignment.center,
-                            child: Container(
-                              width: currentActualWidth + expandWidth,
-                              color: _getChildColor(actionChild),
-                              child: UnconstrainedBox(
-                                constrainedAxis: Axis.vertical,
-                                alignment: Alignment.center,
-                                child: KeyedSubtree(
-                                  key: globalKey,
-                                  child: actionChild,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      clipper: ClipHorizontalRect(
+                        clipLeft: -(expandWidth / 2),
+                        clipRight: -(expandWidth / 2),
                       ),
                     );
                   }
@@ -1451,51 +1394,32 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                           globalKey: globalKey,
                         ),
                       );
-                    } else {
-                      /// 在 adjustEdge 且未超过真实宽度时，
-                      /// 如果 full-expand 动画仍在进行，则对边缘 item 做平滑过渡。
-                      /// In adjustEdge mode and width <= actual width,
-                      /// keep smooth transition for edge item if full-expand animation is active.
-                      if (widget.trailingFullExpandable && index == widget.trailingActions.length - 1) {
-                        final double itemWidth = _trailingActionActualWidths[index];
-                        final double expandWidth = _trailingEdgeExpandWidth(
-                          edgeIndex: index,
-                          trailingWidth: trailingWidth,
-                          totalActualWidth: totalActualWidth,
-                        );
-                        return Transform.translate(
-                          offset: Offset(-expandWidth, 0),
-                          child: SizedBox(
-                            width: itemWidth,
-                            child: OverflowBox(
-                              minWidth: itemWidth,
-                              maxWidth: itemWidth + expandWidth,
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                width: itemWidth + expandWidth,
-                                color: _getChildColor(actionChild),
-                                child: UnconstrainedBox(
-                                  constrainedAxis: Axis.vertical,
-                                  alignment: Alignment.centerLeft,
-                                  child: KeyedSubtree(
-                                    key: globalKey,
-                                    child: actionChild,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }
+                    }
 
-                      return Container(
-                        color: _getChildColor(actionChild),
-                        child: KeyedSubtree(
-                          key: globalKey,
-                          child: actionChild,
-                        ),
+                    if (widget.trailingFullExpandable && _isTrailingEdgeIndex(index)) {
+                      final double itemWidth = _trailingActionActualWidths[index];
+                      final double expandWidth = _computeTrailingEdgeExpandWidth(
+                        edgeIndex: index,
+                      );
+
+                      return _buildExpandableEdgeItem(
+                        viewportWidth: itemWidth,
+                        contentWidth: itemWidth + expandWidth,
+                        overflowMaxWidth: itemWidth + expandWidth,
+                        actionChild: actionChild,
+                        globalKey: globalKey,
+                        alignment: Alignment.centerLeft,
+                        offset: Offset(-expandWidth, 0),
                       );
                     }
+
+                    return Container(
+                      color: _getChildColor(actionChild),
+                      child: KeyedSubtree(
+                        key: globalKey,
+                        child: actionChild,
+                      ),
+                    );
                   },
                   growable: false,
                 ),
