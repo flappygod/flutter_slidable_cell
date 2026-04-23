@@ -733,9 +733,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                     //这里是宽度
                     itemWidth = dragWidth + currentActualWidth;
 
-                    ///宽度
-                    print("AAAAAA::$dragWidth + BBBBBB:::$expandWidth +CCCCCC:::$itemWidth");
-
                     return Transform.translate(
                       offset: Offset(expandWidth, 0),
                       child: SizedBox(
