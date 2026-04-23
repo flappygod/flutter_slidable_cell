@@ -525,7 +525,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     required int edgeIndex,
     required double leadingWidth,
     required double totalActualWidth,
-    required bool proportional,
   }) {
     if (!widget.leadingFullExpandable) {
       return 0;
@@ -536,25 +535,13 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     if (widget.leadingActions.isEmpty) {
       return 0;
     }
-
     double otherWidthSum = 0;
     for (int i = 0; i < widget.leadingActions.length; i++) {
       if (i == edgeIndex) {
         continue;
       }
-
-      double itemWidth;
-      if (proportional) {
-        final currentActualWidth = _leadingActionActualWidths[i];
-        itemWidth = totalActualWidth > 0
-            ? leadingWidth * (currentActualWidth / totalActualWidth)
-            : leadingWidth / widget.leadingActions.length;
-      } else {
-        itemWidth = _leadingActionActualWidths[i];
-      }
-      otherWidthSum += itemWidth;
+      otherWidthSum += _leadingActionActualWidths[i];
     }
-
     return otherWidthSum * _expandLeadingAnimation.value;
   }
 
@@ -569,7 +556,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     required int edgeIndex,
     required double trailingWidth,
     required double totalActualWidth,
-    required bool proportional,
   }) {
     if (!widget.trailingFullExpandable) {
       return 0;
@@ -585,16 +571,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       if (i == edgeIndex) {
         continue;
       }
-      double itemWidth;
-      if (proportional) {
-        final currentActualWidth = _trailingActionActualWidths[i];
-        itemWidth = totalActualWidth > 0
-            ? trailingWidth * (currentActualWidth / totalActualWidth)
-            : trailingWidth / widget.trailingActions.length;
-      } else {
-        itemWidth = _trailingActionActualWidths[i];
-      }
-      otherWidthSum += itemWidth;
+      otherWidthSum += _trailingActionActualWidths[i];
     }
     return otherWidthSum * _expandTrailingAnimation.value;
   }
@@ -1082,7 +1059,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                           edgeIndex: index,
                           leadingWidth: leadingWidth,
                           totalActualWidth: totalActualWidth,
-                          proportional: false,
                         );
                         return Transform.translate(
                           offset: Offset(expandWidth, 0),
@@ -1312,7 +1288,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                           edgeIndex: index,
                           trailingWidth: trailingWidth,
                           totalActualWidth: totalActualWidth,
-                          proportional: false,
                         );
                         return Transform.translate(
                           offset: Offset(-expandWidth, 0),
