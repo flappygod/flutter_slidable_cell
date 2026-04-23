@@ -214,9 +214,9 @@ class SlideableCellView extends StatefulWidget {
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
     this.leadingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.leadingExpandDuration = const Duration(milliseconds: 380),
+    this.leadingExpandDuration = const Duration(milliseconds: 500),
     this.trailingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.trailingExpandDuration = const Duration(milliseconds: 380),
+    this.trailingExpandDuration = const Duration(milliseconds: 500),
   }) : assert(
           key is ValueKey,
           'SlideableCellView.key 必须是 ValueKey / must be a ValueKey',
@@ -304,6 +304,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     _expandLeadingAnimation = CurvedAnimation(
       parent: _expandLeadingController,
       curve: widget.leadingExpandCurve,
+      reverseCurve: widget.leadingExpandCurve.flipped,
     );
 
     /// 尾部动画控制。
@@ -318,6 +319,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     _expandTrailingAnimation = CurvedAnimation(
       parent: _expandTrailingController,
       curve: widget.trailingExpandCurve,
+      reverseCurve: widget.trailingExpandCurve.flipped,
     );
 
     /// 设置监听。
@@ -939,10 +941,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                   /// 对最后 1 条做处理，计算相应 item 的宽度。
                   /// Handle the edge item width for full expansion.
                   if (index == widget.leadingActions.length - 1) {
+                    ///拖动距离
                     final double dragWidth = leadingWidth - totalActualWidth;
-                    final double expandWidth = (totalActualWidth - currentActualWidth) * _expandLeadingAnimation.value;
-                    itemWidth = dragWidth + currentActualWidth;
 
+                    ///展开距离
+                    final double expandWidth = (totalActualWidth - currentActualWidth) * _expandLeadingAnimation.value;
+
+                    ///真实宽度
+                    itemWidth = dragWidth + currentActualWidth;
                     return Transform.translate(
                       offset: Offset(expandWidth, 0),
                       child: SizedBox(
@@ -1008,41 +1014,12 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                   final GlobalKey globalKey = _leadingActionKeys[index];
                   final Widget actionChild = widget.leadingActions[index];
 
-                  /// 在未超过真实宽度时，如果 full-expand 动画仍在进行，
-                  /// 对边缘 item 继续补充 expandWidth，避免动画突兀中断。
-                  /// When width does not exceed actual width, keep applying
-                  /// expandWidth to the edge item if full-expand animation is still running.
-                  if (widget.leadingFullExpandable && index == widget.leadingActions.length - 1) {
-                    final double expandWidth = _leadingEdgeExpandWidth(
-                      edgeIndex: index,
-                      leadingWidth: leadingWidth,
-                      totalActualWidth: totalActualWidth,
-                      proportional: true,
-                    );
-                    return Transform.translate(
-                      offset: Offset(expandWidth, 0),
-                      child: SizedBox(
-                        width: itemWidth,
-                        child: OverflowBox(
-                          minWidth: itemWidth,
-                          maxWidth: itemWidth + expandWidth,
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            width: itemWidth + expandWidth,
-                            color: _getChildColor(actionChild),
-                            child: UnconstrainedBox(
-                              constrainedAxis: Axis.vertical,
-                              alignment: Alignment.centerRight,
-                              child: KeyedSubtree(
-                                key: globalKey,
-                                child: actionChild,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
+                  /// 在 everyItem 模式下，如果 full-expand 动画仍在进行，
+                  /// 只保留平移过渡，不再额外扩展绘制宽度，避免 Row overflow。
+                  /// In everyItem mode, if full-expand animation is still running,
+                  /// keep only translation transition and do not expand paint width,
+                  /// so Row overflow can be avoided.
+                  if (widget.leadingFullExpandable && index == widget.leadingActions.length - 1) {}
 
                   return ClipRect(
                     child: _buildActionItemContainer(
@@ -1271,41 +1248,12 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                   final GlobalKey globalKey = _trailingActionKeys[index];
                   final Widget actionChild = widget.trailingActions[index];
 
-                  /// 在未超过真实宽度时，如果 full-expand 动画仍在进行，
-                  /// 对边缘 item 继续补充 expandWidth，避免动画突兀中断。
-                  /// When width does not exceed actual width, keep applying
-                  /// expandWidth to the edge item if full-expand animation is still running.
-                  if (widget.trailingFullExpandable && index == widget.trailingActions.length - 1) {
-                    final double expandWidth = _trailingEdgeExpandWidth(
-                      edgeIndex: index,
-                      trailingWidth: trailingWidth,
-                      totalActualWidth: totalActualWidth,
-                      proportional: true,
-                    );
-                    return Transform.translate(
-                      offset: Offset(-expandWidth, 0),
-                      child: SizedBox(
-                        width: itemWidth,
-                        child: OverflowBox(
-                          minWidth: itemWidth,
-                          maxWidth: itemWidth + expandWidth,
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            width: itemWidth + expandWidth,
-                            color: _getChildColor(actionChild),
-                            child: UnconstrainedBox(
-                              constrainedAxis: Axis.vertical,
-                              alignment: Alignment.centerLeft,
-                              child: KeyedSubtree(
-                                key: globalKey,
-                                child: actionChild,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
+                  /// 在 everyItem 模式下，如果 full-expand 动画仍在进行，
+                  /// 只保留平移过渡，不再额外扩展绘制宽度，避免 Row overflow。
+                  /// In everyItem mode, if full-expand animation is still running,
+                  /// keep only translation transition and do not expand paint width,
+                  /// so Row overflow can be avoided.
+                  if (widget.trailingFullExpandable && index == widget.trailingActions.length - 1) {}
 
                   return ClipRect(
                     child: _buildActionItemContainer(
