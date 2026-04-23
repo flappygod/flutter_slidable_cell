@@ -713,6 +713,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
           child: SizedBox(
             width: leadingWidth,
             child: Row(
+              textDirection: TextDirection.rtl,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
@@ -723,9 +724,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
                   GlobalKey globalKey = _leadingActionKeys[index];
                   //获取item action
                   Widget actionChild = widget.leadingActions[index];
-                  //对第0条做处理,计算相应item的宽度
+                  //对最后1条做处理,计算相应item的宽度
                   double itemWidth;
-                  if (index == 0) {
+                  if (index == widget.leadingActions.length - 1) {
                     //拖动的宽度
                     double dragWidth = (leadingWidth - totalActualWidth);
                     //展开的宽度
@@ -796,6 +797,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
           child: SizedBox(
             width: leadingWidth,
             child: Row(
+              textDirection: TextDirection.rtl,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
@@ -852,6 +854,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
               maxWidth: double.infinity,
               alignment: Alignment.centerRight,
               child: Row(
+                textDirection: TextDirection.rtl,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: List<Widget>.generate(
                   widget.leadingActions.length,
