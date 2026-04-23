@@ -51,6 +51,12 @@ class SlideableActionItem extends StatelessWidget {
   /// 排列方式
   final SlideableActionItemLayout layout;
 
+  /// behavior行为模式
+  final HitTestBehavior? behavior;
+
+  /// 按钮事件
+  final VoidCallback? onTap;
+
   const SlideableActionItem({
     super.key,
     this.slideBackgroundColor,
@@ -72,6 +78,8 @@ class SlideableActionItem extends StatelessWidget {
     this.text,
     this.textStyle,
     this.layout = SlideableActionItemLayout.iconTopTextBottom,
+    this.behavior,
+    this.onTap,
   });
 
   bool get _hasIcon => icon != null;
@@ -162,20 +170,24 @@ class SlideableActionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      alignment: alignment,
-      padding: padding,
-      color: color,
-      decoration: decoration,
-      foregroundDecoration: foregroundDecoration,
-      width: width,
-      height: height,
-      constraints: constraints,
-      margin: margin,
-      transform: transform,
-      transformAlignment: transformAlignment,
-      clipBehavior: clipBehavior,
-      child: _buildContent(),
+    return GestureDetector(
+      behavior: behavior,
+      onTap: onTap,
+      child: Container(
+        alignment: alignment,
+        padding: padding,
+        color: color,
+        decoration: decoration,
+        foregroundDecoration: foregroundDecoration,
+        width: width,
+        height: height,
+        constraints: constraints,
+        margin: margin,
+        transform: transform,
+        transformAlignment: transformAlignment,
+        clipBehavior: clipBehavior,
+        child: _buildContent(),
+      ),
     );
   }
 }

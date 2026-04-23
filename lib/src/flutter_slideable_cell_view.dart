@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'flutter_slidable_action_item.dart';
-import 'flutter_slidable_base.dart';
+import 'flutter_slideable_action_item.dart';
+import 'flutter_slideable_base.dart';
 
 /// 滑动 Cell 的控制器。
 /// Controller for opening/closing slidable cells by [ValueKey].
@@ -252,20 +252,20 @@ class SlideableCellView extends StatefulWidget {
     required this.controller,
     required this.child,
     this.expandMode = SlideableCellExpandMode.adjustEdge,
-    this.openFactor = 0.3,
-    this.closeFactor = 0.3,
+    this.openFactor = 0.25,
+    this.closeFactor = 0.25,
     this.curve = const Cubic(0.34, 0.84, 0.12, 1.00),
     this.duration = const Duration(milliseconds: 500),
     //左边
     this.leadingActions = const [],
     this.leadingFullExpandable = false,
-    this.leadingFullExpandExtra = 45,
+    this.leadingFullExpandExtra = 25,
     this.leadingFullExpandBehavior = SlideableExpandBehavior.expand,
     this.onLeadingFullExpand,
     //右边
     this.trailingActions = const [],
     this.trailingFullExpandable = false,
-    this.trailingFullExpandExtra = 45,
+    this.trailingFullExpandExtra = 25,
     this.trailingFullExpandBehavior = SlideableExpandBehavior.expand,
     this.onTrailingFullExpand,
     //打开的时候关闭其他的
@@ -1255,7 +1255,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
             width: leadingWidth,
             child: Row(
               textDirection: TextDirection.rtl,
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
                 (index) {
@@ -1316,7 +1316,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
             width: leadingWidth,
             child: Row(
               textDirection: TextDirection.rtl,
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: List<Widget>.generate(
                 widget.leadingActions.length,
                 (index) {
@@ -1386,7 +1386,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
               alignment: Alignment.centerRight,
               child: Row(
                 textDirection: TextDirection.rtl,
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: List<Widget>.generate(
                   widget.leadingActions.length,
                   (index) {
@@ -1458,7 +1458,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
           child: SizedBox(
             width: trailingWidth,
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: List<Widget>.generate(
                 widget.trailingActions.length,
                 (index) {
@@ -1518,7 +1518,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
           child: SizedBox(
             width: trailingWidth,
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: List<Widget>.generate(
                 widget.trailingActions.length,
                 (index) {
@@ -1587,7 +1587,7 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
               maxWidth: double.infinity,
               alignment: Alignment.centerLeft,
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: List<Widget>.generate(
                   widget.trailingActions.length,
                   (index) {
