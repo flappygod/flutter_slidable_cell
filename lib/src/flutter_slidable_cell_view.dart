@@ -220,9 +220,9 @@ class SlideableCellView extends StatefulWidget {
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
     this.leadingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.leadingExpandDuration = const Duration(seconds: 2),
+    this.leadingExpandDuration = const Duration(milliseconds: 500),
     this.trailingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.trailingExpandDuration = const Duration(seconds: 2),
+    this.trailingExpandDuration = const Duration(milliseconds: 500),
   }) : assert(
           key is ValueKey,
           'SlideableCellView.key 必须是 ValueKey / must be a ValueKey',
