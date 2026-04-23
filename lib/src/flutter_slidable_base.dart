@@ -26,14 +26,26 @@ enum SlideableCellStatus {
   trailingOpen,
 }
 
+///展开的最终
+enum SlideableExpandBehavior {
+  //完全展开
+  expand,
+  //关闭
+  close,
+  //打开
+  open,
+}
+
 ///自定义裁剪
 class ClipHorizontalRect extends CustomClipper<Rect> {
   final double? clipLeft;
   final double? clipRight;
+
   const ClipHorizontalRect({
     this.clipLeft,
     this.clipRight,
   });
+
   @override
   Rect getClip(Size size) {
     final double left = clipLeft ?? -100000;

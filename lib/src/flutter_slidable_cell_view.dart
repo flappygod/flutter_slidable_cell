@@ -170,6 +170,9 @@ class SlideableCellView extends StatefulWidget {
   /// Extra distance to trigger leading full expansion.
   final double leadingFullExpandExtra;
 
+  /// 最终展开的
+  final SlideableExpandBehavior leadingFullExpandBehavior;
+
   /// 右侧是否可以全展开。
   /// Whether trailing side supports full expansion.
   final bool trailingFullExpandable;
@@ -177,6 +180,9 @@ class SlideableCellView extends StatefulWidget {
   /// 右侧全展开额外触发距离。
   /// Extra distance to trigger trailing full expansion.
   final double trailingFullExpandExtra;
+
+  /// 最终展开的
+  final SlideableExpandBehavior trailingFullExpandBehavior;
 
   /// 背景颜色。
   /// Background color.
@@ -211,12 +217,17 @@ class SlideableCellView extends StatefulWidget {
     this.closeFactor = 0.3,
     this.curve = const Cubic(0.34, 0.84, 0.12, 1.00),
     this.duration = const Duration(milliseconds: 380),
+    //左边
     this.leadingActions = const [],
-    this.trailingActions = const [],
     this.leadingFullExpandable = false,
-    this.trailingFullExpandable = false,
     this.leadingFullExpandExtra = 60,
+    this.leadingFullExpandBehavior = SlideableExpandBehavior.expand,
+    //右边
+    this.trailingActions = const [],
+    this.trailingFullExpandable = false,
     this.trailingFullExpandExtra = 60,
+    this.trailingFullExpandBehavior = SlideableExpandBehavior.expand,
+    //打开的时候关闭其他的
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
     this.leadingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
