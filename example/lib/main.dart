@@ -83,6 +83,7 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                   curve: Curves.easeOutCubic,
                   color: Colors.grey,
                   leadingFullExpandable: true,
+                  trailingFullExpandable: true,
                   leadingActions: const [
                     SlideableActionItem(
                       width: 70,
