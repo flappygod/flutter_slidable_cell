@@ -156,6 +156,20 @@ class SlideableCellView extends StatefulWidget {
   /// Close threshold ratio when gesture ends from opened state.
   final double closeFactor;
 
+  /// 快速滑动判定阈值（单位：逻辑像素 / 秒）。
+  /// 当手势抬起瞬间的水平速度绝对值大于该值时，
+  /// 不再走 [openFactor] / [closeFactor] 比例判断，
+  /// 而是直接按速度方向决定打开 / 关闭，
+  /// 这样即便位移很小也能完成开关。
+  /// 全展开（leading/trailingFullExpandable）的判定不受影响。
+  /// Fling velocity threshold (logical pixels per second).
+  /// When |velocity| at gesture end exceeds this value,
+  /// the cell snaps open/closed by the velocity direction,
+  /// bypassing [openFactor] / [closeFactor], so fast flicks
+  /// can toggle the cell even with a tiny drag distance.
+  /// Full-expand detection is not affected.
+  final double flingVelocity;
+
   /// 开关动画曲线。
   /// Curve used by open/close animation.
   final Curve curve;
@@ -254,18 +268,19 @@ class SlideableCellView extends StatefulWidget {
     this.expandMode = SlideableCellExpandMode.adjustEdge,
     this.openFactor = 0.25,
     this.closeFactor = 0.25,
+    this.flingVelocity = 700.0,
     this.curve = const Cubic(0.34, 0.84, 0.12, 1.00),
     this.duration = const Duration(milliseconds: 500),
     //左边
     this.leadingActions = const [],
     this.leadingFullExpandable = false,
-    this.leadingFullExpandExtra = 25,
+    this.leadingFullExpandExtra = 35,
     this.leadingFullExpandBehavior = SlideableExpandBehavior.expand,
     this.onLeadingFullExpand,
     //右边
     this.trailingActions = const [],
     this.trailingFullExpandable = false,
-    this.trailingFullExpandExtra = 25,
+    this.trailingFullExpandExtra = 35,
     this.trailingFullExpandBehavior = SlideableExpandBehavior.expand,
     this.onTrailingFullExpand,
     //打开的时候关闭其他的
@@ -593,6 +608,30 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// Total measured width of trailing actions.
   double get _trailingActualTotalWidth {
     return _trailingActionActualWidths.fold(0, (sum, item) => sum + item);
+  }
+
+  /// 左侧 actions 是否已经全部测量过宽度。
+  /// Whether all leading actions have been measured at least once.
+  bool get _leadingMeasured {
+    if (widget.leadingActions.isEmpty) {
+      return true;
+    }
+    for (final w in _leadingActionActualWidths) {
+      if (w <= 0) return false;
+    }
+    return true;
+  }
+
+  /// 右侧 actions 是否已经全部测量过宽度。
+  /// Whether all trailing actions have been measured at least once.
+  bool get _trailingMeasured {
+    if (widget.trailingActions.isEmpty) {
+      return true;
+    }
+    for (final w in _trailingActionActualWidths) {
+      if (w <= 0) return false;
+    }
+    return true;
   }
 
   /// 收集 action 实际宽度并在变化时刷新。
@@ -1044,6 +1083,34 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       }
     }
 
+    /// 快速滑动（fling）判定：
+    /// 速度绝对值超过阈值时按方向直接决定开关，
+    /// 优先于"拖过实际宽度"和 [openFactor]/[closeFactor] 的比例判断。
+    /// Fling check: when |velocity| exceeds threshold,
+    /// snap by direction; takes precedence over the
+    /// "drag past actual width" rule and factor-based fallback.
+    final double velocity = details.primaryVelocity ?? 0.0;
+    if (velocity.abs() > widget.flingVelocity) {
+      if (velocity > 0) {
+        // 向右快滑：当前在 leading 一侧 → 打开 leading；否则关闭。
+        // Rightward fling: open leading if on leading side, else close.
+        if (_offset > 0 && leadingWidth > 0) {
+          await _animateToLeadingOpen();
+        } else {
+          await _animateToClosed();
+        }
+      } else {
+        // 向左快滑：当前在 trailing 一侧 → 打开 trailing；否则关闭。
+        // Leftward fling: open trailing if on trailing side, else close.
+        if (_offset < 0 && trailingWidth > 0) {
+          await _animateToTrailingOpen();
+        } else {
+          await _animateToClosed();
+        }
+      }
+      return;
+    }
+
     if (_offset > 0 && leadingWidth > 0 && _offset > leadingWidth) {
       await _animateToLeadingOpen();
       return;
@@ -1239,6 +1306,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// Builds leading action area.
   Widget _buildLeading() {
     if (widget.leadingActions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // 性能优化：在 cell 完全收起且首帧测量已完成时，
+    // 不构建 leading 子树，避免无意义的 widget 构造与布局开销。
+    // Performance: skip building the leading subtree once it's fully
+    // closed and widths have been measured at least once.
+    if (_offset <= 0 && _leadingMeasured) {
       return const SizedBox.shrink();
     }
 
@@ -1444,6 +1519,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       return const SizedBox.shrink();
     }
 
+    // 性能优化：在 cell 完全收起且首帧测量已完成时，
+    // 不构建 trailing 子树，避免无意义的 widget 构造与布局开销。
+    // Performance: skip building the trailing subtree once it's fully
+    // closed and widths have been measured at least once.
+    if (_offset >= 0 && _trailingMeasured) {
+      return const SizedBox.shrink();
+    }
+
     double trailingWidth = _offset < 0 ? -_offset : 0.0;
     trailingWidth = trailingWidth.clamp(0.0, double.infinity);
 
@@ -1643,6 +1726,11 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
   /// 构建前景 child，并绑定水平拖动手势。
   /// Builds foreground child with horizontal drag gestures.
   Widget _buildChild() {
+    // 完全关闭时省略 Transform，避免引入额外的渲染层。
+    // Skip Transform when fully closed to avoid an extra layer.
+    if (_offset == 0) {
+      return widget.child;
+    }
     return Transform.translate(
       offset: Offset(_offset, 0),
       child: widget.child,
