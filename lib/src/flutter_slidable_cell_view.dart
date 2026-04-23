@@ -59,6 +59,7 @@ class SlideableCellController {
     final current = _entries[key];
     if (identical(current, entry)) {
       _entries.remove(key);
+      _status.remove(key);
     }
   }
 
@@ -392,8 +393,8 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
         oldWidget.trailingActions.length != widget.trailingActions.length) {
       _recreateActionKeys();
       _resizeActualWidths();
-      _scheduleCollectActionWidths();
     }
+    _scheduleCollectActionWidths();
 
     /// 重新绑定 key 或 controller。
     /// Rebind when key or controller changes.
@@ -560,6 +561,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     if (widget.leadingActions.isEmpty) {
       return 0;
     }
+    if (totalActualWidth <= 0) {
+      return 0;
+    }
     double otherWidthSum = 0;
     for (int i = 0; i < widget.leadingActions.length; i++) {
       if (i == edgeIndex) {
@@ -614,6 +618,9 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       return 0;
     }
     if (widget.trailingActions.isEmpty) {
+      return 0;
+    }
+    if (totalActualWidth <= 0) {
       return 0;
     }
     double otherWidthSum = 0;
