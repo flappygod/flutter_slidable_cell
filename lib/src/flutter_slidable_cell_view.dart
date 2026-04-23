@@ -214,9 +214,9 @@ class SlideableCellView extends StatefulWidget {
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
     this.leadingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.leadingExpandDuration = const Duration(milliseconds: 500),
+    this.leadingExpandDuration = const Duration(seconds: 2),
     this.trailingExpandCurve = const Cubic(0.34, 0.84, 0.12, 1.00),
-    this.trailingExpandDuration = const Duration(milliseconds: 500),
+    this.trailingExpandDuration = const Duration(seconds: 2),
   }) : assert(
           key is ValueKey,
           'SlideableCellView.key 必须是 ValueKey / must be a ValueKey',
@@ -545,6 +545,31 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
     return otherWidthSum * _expandLeadingAnimation.value;
   }
 
+  ///左侧everyExpandWidth
+  double _leadingEveryExpandWidth({
+    required int edgeIndex,
+    required double leadingWidth,
+    required double totalActualWidth,
+  }) {
+    if (!widget.leadingFullExpandable) {
+      return 0;
+    }
+    if (_expandLeadingAnimation.value <= 0) {
+      return 0;
+    }
+    if (widget.leadingActions.isEmpty) {
+      return 0;
+    }
+    double otherWidthSum = 0;
+    for (int i = 0; i < widget.leadingActions.length; i++) {
+      if (i == edgeIndex) {
+        continue;
+      }
+      otherWidthSum += leadingWidth * (_leadingActionActualWidths[i] / totalActualWidth);
+    }
+    return otherWidthSum * _expandLeadingAnimation.value;
+  }
+
   /// 计算 trailing 边缘 item 的额外 expandWidth。
   /// Calculates extra expandWidth for trailing edge item.
   ///
@@ -572,6 +597,31 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
         continue;
       }
       otherWidthSum += _trailingActionActualWidths[i];
+    }
+    return otherWidthSum * _expandTrailingAnimation.value;
+  }
+
+  ///右侧everyExpandWidth
+  double _trailingEveryExpandWidth({
+    required int edgeIndex,
+    required double trailingWidth,
+    required double totalActualWidth,
+  }) {
+    if (!widget.trailingFullExpandable) {
+      return 0;
+    }
+    if (_expandTrailingAnimation.value <= 0) {
+      return 0;
+    }
+    if (widget.trailingActions.isEmpty) {
+      return 0;
+    }
+    double otherWidthSum = 0;
+    for (int i = 0; i < widget.trailingActions.length; i++) {
+      if (i == edgeIndex) {
+        continue;
+      }
+      otherWidthSum += trailingWidth * (_trailingActionActualWidths[i] / totalActualWidth);
     }
     return otherWidthSum * _expandTrailingAnimation.value;
   }
@@ -1021,9 +1071,42 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
 
                   /// 这里帮我分析下后补齐
                   if (widget.leadingFullExpandable && index == widget.leadingActions.length - 1) {
-
+                    final double expandWidth = _leadingEveryExpandWidth(
+                      edgeIndex: index,
+                      leadingWidth: leadingWidth,
+                      totalActualWidth: totalActualWidth,
+                    );
+                    final double currentActualWidth = _leadingActionActualWidths[index];
+                    return Transform.translate(
+                      offset: Offset(expandWidth / 2, 0),
+                      child: ClipRect(
+                        clipper: ClipHorizontalRect(
+                          clipLeft: -(expandWidth / 2),
+                          clipRight: -(expandWidth / 2),
+                        ),
+                        child: SizedBox(
+                          width: itemWidth,
+                          child: OverflowBox(
+                            minWidth: itemWidth,
+                            maxWidth: currentActualWidth + expandWidth,
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: currentActualWidth + expandWidth,
+                              color: _getChildColor(actionChild),
+                              child: UnconstrainedBox(
+                                constrainedAxis: Axis.vertical,
+                                alignment: Alignment.center,
+                                child: KeyedSubtree(
+                                  key: globalKey,
+                                  child: actionChild,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
                   }
-
                   return ClipRect(
                     child: _buildActionItemContainer(
                       width: itemWidth,
@@ -1278,7 +1361,41 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
 
                   /// 这里帮我分析下后补齐
                   if (widget.trailingFullExpandable && index == widget.trailingActions.length - 1) {
-
+                    final double expandWidth = _trailingEveryExpandWidth(
+                      edgeIndex: index,
+                      trailingWidth: trailingWidth,
+                      totalActualWidth: totalActualWidth,
+                    );
+                    final double currentActualWidth = _trailingActionActualWidths[index];
+                    return Transform.translate(
+                      offset: Offset(-expandWidth / 2, 0),
+                      child: ClipRect(
+                        clipper: ClipHorizontalRect(
+                          clipLeft: -(expandWidth / 2),
+                          clipRight: -(expandWidth / 2),
+                        ),
+                        child: SizedBox(
+                          width: itemWidth,
+                          child: OverflowBox(
+                            minWidth: itemWidth,
+                            maxWidth: currentActualWidth + expandWidth,
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: currentActualWidth + expandWidth,
+                              color: _getChildColor(actionChild),
+                              child: UnconstrainedBox(
+                                constrainedAxis: Axis.vertical,
+                                alignment: Alignment.center,
+                                child: KeyedSubtree(
+                                  key: globalKey,
+                                  child: actionChild,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
                   }
 
                   return ClipRect(
