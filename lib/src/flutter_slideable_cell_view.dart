@@ -483,17 +483,6 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
       curve: widget.trailingExpandCurve,
       reverseCurve: widget.trailingExpandCurve.flipped,
     );
-
-    _expandLeadingController.addListener(() {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-    _expandTrailingController.addListener(() {
-      if (mounted) {
-        setState(() {});
-      }
-    });
   }
 
   /// snap 动画每帧回调：根据 controller.value 解算出当前 offset。
@@ -1197,8 +1186,14 @@ class _SlideableCellViewState extends State<SlideableCellView> with TickerProvid
               clipBehavior: Clip.hardEdge,
               children: [
                 _buildChild(),
-                _buildLeading(),
-                _buildTrailing(),
+                AnimatedBuilder(
+                  animation: _expandLeadingController,
+                  builder: (context, _) => _buildLeading(),
+                ),
+                AnimatedBuilder(
+                  animation: _expandTrailingController,
+                  builder: (context, _) => _buildTrailing(),
+                ),
               ],
             ),
           ),
