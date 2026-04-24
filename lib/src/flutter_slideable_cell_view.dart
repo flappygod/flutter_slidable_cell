@@ -265,13 +265,13 @@ class SlideableCellView extends StatefulWidget {
   final Duration trailingExpandDuration;
 
   /// leading/trailing expand 动画真正触发 forward/reverse 时回调。
-  /// - [isLeading]：true 表示 leading，false 表示 trailing。
-  /// - [isReverse]：true 表示 reverse，false 表示 forward。
+  /// - [side]：本次触发来自 leading 还是 trailing。
+  /// - [action]：本次是展开（forward）还是收起（reverse）。
   /// Fired when leading/trailing expand animation actually calls
   /// forward/reverse on its controller.
   final void Function({
-    required bool isLeading,
-    required bool isReverse,
+    required SlideableActionSide side,
+    required SlideableExpandTriggerAction action,
   })? onExpandAnimationTrigger;
 
   const SlideableCellView({
@@ -531,12 +531,12 @@ class _SlideableCellViewState extends State<SlideableCellView>
           _leadingActualTotalWidth + widget.leadingFullExpandExtra) {
         _forwardExpand(
           _expandLeadingController,
-          isLeading: true,
+          side: SlideableActionSide.leading,
         );
       } else {
         _reverseExpand(
           _expandLeadingController,
-          isLeading: true,
+          side: SlideableActionSide.leading,
         );
       }
     }
@@ -546,12 +546,12 @@ class _SlideableCellViewState extends State<SlideableCellView>
           _trailingActualTotalWidth + widget.trailingFullExpandExtra) {
         _forwardExpand(
           _expandTrailingController,
-          isLeading: false,
+          side: SlideableActionSide.trailing,
         );
       } else {
         _reverseExpand(
           _expandTrailingController,
-          isLeading: false,
+          side: SlideableActionSide.trailing,
         );
       }
     }
@@ -561,15 +561,15 @@ class _SlideableCellViewState extends State<SlideableCellView>
   /// Use [AnimationStatus] to avoid redundant forward() calls.
   void _forwardExpand(
     AnimationController controller, {
-    required bool isLeading,
+    required SlideableActionSide side,
   }) {
     final s = controller.status;
     if (s == AnimationStatus.forward || s == AnimationStatus.completed) {
       return;
     }
     widget.onExpandAnimationTrigger?.call(
-      isLeading: isLeading,
-      isReverse: false,
+      side: side,
+      action: SlideableExpandTriggerAction.expand,
     );
     controller.forward(from: controller.value);
   }
@@ -578,15 +578,15 @@ class _SlideableCellViewState extends State<SlideableCellView>
   /// Use [AnimationStatus] to avoid redundant reverse() calls.
   void _reverseExpand(
     AnimationController controller, {
-    required bool isLeading,
+    required SlideableActionSide side,
   }) {
     final s = controller.status;
     if (s == AnimationStatus.reverse || s == AnimationStatus.dismissed) {
       return;
     }
     widget.onExpandAnimationTrigger?.call(
-      isLeading: isLeading,
-      isReverse: true,
+      side: side,
+      action: SlideableExpandTriggerAction.collapse,
     );
     controller.reverse(from: controller.value);
   }

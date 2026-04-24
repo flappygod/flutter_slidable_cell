@@ -36,6 +36,30 @@ enum SlideableCellStatus {
   trailingFullExpanded,
 }
 
+/// expand 动画触发的侧边。
+/// Side where expand animation is triggered.
+enum SlideableActionSide {
+  /// 左侧（leading）。
+  /// Leading side.
+  leading,
+
+  /// 右侧（trailing）。
+  /// Trailing side.
+  trailing,
+}
+
+/// expand 动画触发的动作类型。
+/// Action type when expand animation is triggered.
+enum SlideableExpandTriggerAction {
+  /// 执行 forward（展开）。
+  /// Forward (expand).
+  expand,
+
+  /// 执行 reverse（收起）。
+  /// Reverse (collapse).
+  collapse,
+}
+
 /// 拖动越过 `*FullExpandExtra` 阈值后，松手时的最终行为。
 /// Final behavior when drag distance crosses `*FullExpandExtra` threshold.
 enum SlideableExpandBehavior {
