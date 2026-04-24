@@ -259,6 +259,11 @@ class SlideableCellView extends StatefulWidget {
   /// [SlideableCellController.openLeadingFullExpand] do not trigger this.
   final void Function(SlideableExpandBehavior behavior)? onLeadingFullExpand;
 
+  /// leading 命中全展开阈值时，是否自动触发最后一个 action 的 onTap。
+  /// Whether to auto-trigger the last leading action's onTap when
+  /// leading full-expand threshold is hit.
+  final bool leadingAutoTrigger;
+
   /// 右侧是否可以全展开。
   /// Whether trailing side supports full expansion.
   final bool trailingFullExpandable;
@@ -280,6 +285,11 @@ class SlideableCellView extends StatefulWidget {
   /// Note: programmatic calls to
   /// [SlideableCellController.openTrailingFullExpand] do not trigger this.
   final void Function(SlideableExpandBehavior behavior)? onTrailingFullExpand;
+
+  /// trailing 命中全展开阈值时，是否自动触发最后一个 action 的 onTap。
+  /// Whether to auto-trigger the last trailing action's onTap when
+  /// trailing full-expand threshold is hit.
+  final bool trailingAutoTrigger;
 
   /// 背景颜色。
   /// Background color.
@@ -331,12 +341,14 @@ class SlideableCellView extends StatefulWidget {
     this.leadingFullExpandExtra = 35,
     this.leadingFullExpandBehavior = SlideableExpandBehavior.expand,
     this.onLeadingFullExpand,
+    this.leadingAutoTrigger = false,
     //右边
     this.trailingActions = const [],
     this.trailingFullExpandable = false,
     this.trailingFullExpandExtra = 35,
     this.trailingFullExpandBehavior = SlideableExpandBehavior.expand,
     this.onTrailingFullExpand,
+    this.trailingAutoTrigger = false,
     //打开的时候关闭其他的
     this.closeOthersWhenOpen = true,
     this.color = Colors.white,
@@ -1056,6 +1068,30 @@ class _SlideableCellViewState extends State<SlideableCellView>
     return index == widget.trailingActions.length - 1;
   }
 
+  /// 触发 leading 侧最后一个 action 的 onTap（若可触发）。
+  /// Triggers last leading action onTap when available.
+  void _triggerLeadingLastActionTap() {
+    if (widget.leadingActions.isEmpty) {
+      return;
+    }
+    final last = widget.leadingActions.last;
+    if (last is SlideableActionItem) {
+      last.onTap?.call();
+    }
+  }
+
+  /// 触发 trailing 侧最后一个 action 的 onTap（若可触发）。
+  /// Triggers last trailing action onTap when available.
+  void _triggerTrailingLastActionTap() {
+    if (widget.trailingActions.isEmpty) {
+      return;
+    }
+    final last = widget.trailingActions.last;
+    if (last is SlideableActionItem) {
+      last.onTap?.call();
+    }
+  }
+
   /// 按比例计算 item 宽度。
   /// Calculates proportional item width.
   double _proportionalWidth({
@@ -1132,6 +1168,9 @@ class _SlideableCellViewState extends State<SlideableCellView>
         _offset > leadingWidth + widget.leadingFullExpandExtra) {
       final behavior = widget.leadingFullExpandBehavior;
       widget.onLeadingFullExpand?.call(behavior);
+      if (widget.leadingAutoTrigger) {
+        _triggerLeadingLastActionTap();
+      }
       switch (behavior) {
         case SlideableExpandBehavior.expand:
           await _animateToLeadingFullExpand();
@@ -1153,6 +1192,9 @@ class _SlideableCellViewState extends State<SlideableCellView>
         (-_offset) > trailingWidth + widget.trailingFullExpandExtra) {
       final behavior = widget.trailingFullExpandBehavior;
       widget.onTrailingFullExpand?.call(behavior);
+      if (widget.trailingAutoTrigger) {
+        _triggerTrailingLastActionTap();
+      }
       switch (behavior) {
         case SlideableExpandBehavior.expand:
           await _animateToTrailingFullExpand();
