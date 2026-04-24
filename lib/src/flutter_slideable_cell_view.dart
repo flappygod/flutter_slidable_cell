@@ -51,6 +51,30 @@ class SlideableCellController {
     _SlideableCellControllerEntry entry,
     SlideableCellStatus initialStatus,
   ) {
+    // 先清理同 value 的历史映射，避免列表重建/复用后留下陈旧 entry。
+    // Remove stale mappings with the same key.value first to avoid
+    // controller calls hitting outdated callbacks.
+    ValueKey? staleEntryKey;
+    for (final item in _entries.entries) {
+      if (item.key.value == key.value && !identical(item.value, entry)) {
+        staleEntryKey = item.key;
+        break;
+      }
+    }
+    if (staleEntryKey != null) {
+      _entries.remove(staleEntryKey);
+    }
+    ValueKey? staleStatusKey;
+    for (final item in _statusMap.entries) {
+      if (item.key.value == key.value && item.key != key) {
+        staleStatusKey = item.key;
+        break;
+      }
+    }
+    if (staleStatusKey != null) {
+      _statusMap.remove(staleStatusKey);
+    }
+
     _entries[key] = entry;
     _statusMap[key] = initialStatus;
   }
@@ -61,6 +85,23 @@ class SlideableCellController {
     final current = _entries[key];
     if (identical(current, entry)) {
       _entries.remove(key);
+      _statusMap.remove(key);
+      return;
+    }
+
+    // 兜底：当 Map 直接命中失败（例如 key 实例变化或历史脏映射）时，
+    // 再按 value 和 entry 身份进行扫描清理。
+    // Fallback cleanup by key.value / entry identity when direct map lookup misses.
+    ValueKey? mappedKey;
+    for (final item in _entries.entries) {
+      if (identical(item.value, entry) || item.key.value == key.value) {
+        mappedKey = item.key;
+        break;
+      }
+    }
+    if (mappedKey != null) {
+      _entries.remove(mappedKey);
+      _statusMap.remove(mappedKey);
       _statusMap.remove(key);
     }
   }
