@@ -141,7 +141,7 @@ class SlideableCellController {
 }
 
 /// 可滑动的 Cell 组件。
-/// A slidable cell widget with leading/trailing actions.
+/// A slideable cell widget with leading/trailing actions.
 class SlideableCellView extends StatefulWidget {
   /// 展开模式。
   /// Expansion mode for action layout.
@@ -269,10 +269,10 @@ class SlideableCellView extends StatefulWidget {
   /// - [action]：本次是展开（forward）还是收起（reverse）。
   /// Fired when leading/trailing expand animation actually calls
   /// forward/reverse on its controller.
-  final void Function({
-    required SlideableActionSide side,
-    required SlideableExpandTriggerAction action,
-  })? onExpandAnimationTrigger;
+  final void Function(
+    SlideableActionSide side,
+    SlideableExpandTriggerAction action,
+  )? onExpandAnimationTrigger;
 
   const SlideableCellView({
     required super.key,
@@ -568,8 +568,8 @@ class _SlideableCellViewState extends State<SlideableCellView>
       return;
     }
     widget.onExpandAnimationTrigger?.call(
-      side: side,
-      action: SlideableExpandTriggerAction.expand,
+      side,
+      SlideableExpandTriggerAction.expand,
     );
     controller.forward(from: controller.value);
   }
@@ -585,8 +585,8 @@ class _SlideableCellViewState extends State<SlideableCellView>
       return;
     }
     widget.onExpandAnimationTrigger?.call(
-      side: side,
-      action: SlideableExpandTriggerAction.collapse,
+      side,
+      SlideableExpandTriggerAction.collapse,
     );
     controller.reverse(from: controller.value);
   }
