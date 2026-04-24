@@ -61,8 +61,14 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton(onPressed: _openFirstLeading, child: const Text('打开第1项左侧')),
-                FilledButton(onPressed: _openSecondTrailing, child: const Text('打开第2项右侧')),
+                FilledButton(
+                  onPressed: _openFirstLeading,
+                  child: const Text('打开第1项左侧'),
+                ),
+                FilledButton(
+                  onPressed: _openSecondTrailing,
+                  child: const Text('打开第2项右侧'),
+                ),
                 OutlinedButton(onPressed: _closeAll, child: const Text('关闭全部')),
               ],
             ),
@@ -70,7 +76,8 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
           Expanded(
             child: ListView.separated(
               itemCount: _items.length,
-              separatorBuilder: (_, __) => Container(height: 0.3, color: Colors.white70),
+              separatorBuilder: (_, __) =>
+                  Container(height: 0.3, color: Colors.white70),
               itemBuilder: (context, index) {
                 final key = ValueKey('cell_$index');
                 return SlideableCellView(
@@ -90,7 +97,9 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                       ..showSnackBar(
                         SnackBar(
                           duration: const Duration(milliseconds: 800),
-                          content: Text('leading full-expand 触发：$behavior (#$index)'),
+                          content: Text(
+                            'leading full-expand 触发：$behavior (#$index)',
+                          ),
                         ),
                       );
                   },
@@ -102,7 +111,9 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                       ..showSnackBar(
                         SnackBar(
                           duration: const Duration(milliseconds: 800),
-                          content: Text('trailing full-expand 触发：$behavior (#$index)'),
+                          content: Text(
+                            'trailing full-expand 触发：$behavior (#$index)',
+                          ),
                         ),
                       );
                   },
@@ -111,20 +122,36 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                       width: 70,
                       slideBackgroundColor: Colors.blue,
                       alignment: Alignment.center,
-                      icon: Icon(Icons.vertical_align_top, color: Colors.white, size: 18),
+                      icon: Icon(
+                        Icons.vertical_align_top,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       iconPadding: EdgeInsets.only(right: 4),
                       text: '置顶',
-                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      textStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                       layout: SlideableActionItemLayout.iconLeftTextRight,
                     ),
                     SlideableActionItem(
                       width: 85,
                       slideBackgroundColor: Colors.green,
                       alignment: Alignment.center,
-                      icon: Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 18),
+                      icon: Icon(
+                        Icons.mark_email_read_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       iconPadding: EdgeInsets.only(right: 4),
                       text: '标记已读',
-                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      textStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                       layout: SlideableActionItemLayout.iconLeftTextRight,
                     ),
                   ],
@@ -133,20 +160,36 @@ class _SlidableExamplePageState extends State<SlidableExamplePage> {
                       width: 92,
                       slideBackgroundColor: Colors.orange,
                       alignment: Alignment.center,
-                      icon: Icon(Icons.schedule_outlined, color: Colors.white, size: 18),
+                      icon: Icon(
+                        Icons.schedule_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       iconPadding: EdgeInsets.only(bottom: 4),
                       text: '稍后处理',
-                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      textStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                       layout: SlideableActionItemLayout.iconTopTextBottom,
                     ),
                     SlideableActionItem(
                       width: 76,
                       slideBackgroundColor: Colors.red,
                       alignment: Alignment.center,
-                      icon: Icon(Icons.delete_outline, color: Colors.white, size: 18),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       iconPadding: EdgeInsets.only(bottom: 4),
                       text: '删除',
-                      textStyle: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      textStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                       layout: SlideableActionItemLayout.iconTopTextBottom,
                     ),
                   ],

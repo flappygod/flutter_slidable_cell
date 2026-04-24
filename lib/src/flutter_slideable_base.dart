@@ -81,7 +81,9 @@ class ClipHorizontalRect extends CustomClipper<Rect> {
     final double left = clipLeft ?? _noClipSentinel;
     final double right = clipRight ?? _noClipSentinel;
     final double rectLeft = left < 0 ? left : left.clamp(0.0, size.width);
-    final double rectRightEdge = right < 0 ? size.width - right : size.width - right.clamp(0.0, size.width);
+    final double rectRightEdge = right < 0
+        ? size.width - right
+        : size.width - right.clamp(0.0, size.width);
     return Rect.fromLTRB(
       rectLeft,
       0,
