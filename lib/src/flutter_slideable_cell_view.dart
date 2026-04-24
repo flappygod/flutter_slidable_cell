@@ -15,33 +15,16 @@ class SlideableCellController {
   final Map<ValueKey, SlideableCellStatus> _statusMap =
       <ValueKey, SlideableCellStatus>{};
 
-  /// 通用查找方法：
-  /// 先按 key 直接查，再按 key.value 查。
-  /// Generic finder:
-  /// first lookup by key directly, then fallback to key.value.
-  T? _findByValueKey<T>(Map<ValueKey, T> source, ValueKey key) {
-    final direct = source[key];
-    if (direct != null) {
-      return direct;
-    }
-    for (final item in source.entries) {
-      if (item.key.value == key.value) {
-        return item.value;
-      }
-    }
-    return null;
-  }
-
   /// 找到相应的 entry。
   /// Finds the matching entry.
   _SlideableCellControllerEntry? _findEntry(ValueKey key) {
-    return _findByValueKey(_entries, key);
+    return _entries[key];
   }
 
   /// 找到相应的状态。
   /// Finds the matching status.
   SlideableCellStatus _findStatus(ValueKey key) {
-    return _findByValueKey(_statusMap, key) ?? SlideableCellStatus.closed;
+    return _statusMap[key] ?? SlideableCellStatus.closed;
   }
 
   /// 注册一个可控制的 Cell 实例。
@@ -51,30 +34,6 @@ class SlideableCellController {
     _SlideableCellControllerEntry entry,
     SlideableCellStatus initialStatus,
   ) {
-    // 先清理同 value 的历史映射，避免列表重建/复用后留下陈旧 entry。
-    // Remove stale mappings with the same key.value first to avoid
-    // controller calls hitting outdated callbacks.
-    ValueKey? staleEntryKey;
-    for (final item in _entries.entries) {
-      if (item.key.value == key.value && !identical(item.value, entry)) {
-        staleEntryKey = item.key;
-        break;
-      }
-    }
-    if (staleEntryKey != null) {
-      _entries.remove(staleEntryKey);
-    }
-    ValueKey? staleStatusKey;
-    for (final item in _statusMap.entries) {
-      if (item.key.value == key.value && item.key != key) {
-        staleStatusKey = item.key;
-        break;
-      }
-    }
-    if (staleStatusKey != null) {
-      _statusMap.remove(staleStatusKey);
-    }
-
     _entries[key] = entry;
     _statusMap[key] = initialStatus;
   }
@@ -86,29 +45,15 @@ class SlideableCellController {
     if (identical(current, entry)) {
       _entries.remove(key);
       _statusMap.remove(key);
-      return;
-    }
-
-    // 兜底：当 Map 直接命中失败（例如 key 实例变化或历史脏映射）时，
-    // 再按 value 和 entry 身份进行扫描清理。
-    // Fallback cleanup by key.value / entry identity when direct map lookup misses.
-    ValueKey? mappedKey;
-    for (final item in _entries.entries) {
-      if (identical(item.value, entry) || item.key.value == key.value) {
-        mappedKey = item.key;
-        break;
-      }
-    }
-    if (mappedKey != null) {
-      _entries.remove(mappedKey);
-      _statusMap.remove(mappedKey);
-      _statusMap.remove(key);
     }
   }
 
   /// 更新指定 key 对应 item 的状态缓存。
   /// Updates cached open/close status for an item key.
   void _updateStatus(ValueKey key, SlideableCellStatus status) {
+    if (!_entries.containsKey(key)) {
+      return;
+    }
     _statusMap[key] = status;
   }
 
@@ -127,7 +72,11 @@ class SlideableCellController {
   /// 全量状态快照（只读）。
   /// Read-only snapshot for all item statuses.
   Map<ValueKey, SlideableCellStatus> get statuses {
-    return Map<ValueKey, SlideableCellStatus>.unmodifiable(_statusMap);
+    final Map<ValueKey, SlideableCellStatus> result = {};
+    for (final key in _entries.keys) {
+      result[key] = _statusMap[key] ?? SlideableCellStatus.closed;
+    }
+    return Map<ValueKey, SlideableCellStatus>.unmodifiable(result);
   }
 
   /// 打开左方（普通宽度）。
