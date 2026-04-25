@@ -393,6 +393,14 @@ class SlideableCellView extends StatefulWidget {
 /// Internal state implementation for [SlideableCellView].
 class _SlideableCellViewState extends State<SlideableCellView>
     with TickerProviderStateMixin {
+  /// close 行为进入强阻力前的额外距离常量（在 total+extra 之后再加一段）。
+  /// Extra distance after (total + extra) before strong resistance starts.
+  static const double _closeResistanceStartExtra = 24.0;
+
+  /// close 行为进入强阻力后的拖动衰减系数（越小阻力越大）。
+  /// Drag damping factor after close-resistance starts (smaller => stronger).
+  static const double _closeResistanceFactor = 0.2;
+
   /// 回弹动画控制器。
   /// Snap animation controller.
   late final AnimationController _snapAnimationController;
@@ -1141,7 +1149,10 @@ class _SlideableCellViewState extends State<SlideableCellView>
   /// 拖动过程中实时更新偏移，并限制在左右可展开范围内。
   /// Updates offset while dragging and clamps to action total widths.
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    final next = _offset + details.delta.dx;
+    final next = _applyCloseResistanceIfNeeded(
+      baseOffset: _offset,
+      deltaDx: details.delta.dx,
+    );
     final leadingLimit = _maxDragDistance(_leadingActualTotalWidth);
     final trailingLimit = _maxDragDistance(_trailingActualTotalWidth);
     final clamped = next.clamp(-trailingLimit, leadingLimit);
@@ -1152,6 +1163,61 @@ class _SlideableCellViewState extends State<SlideableCellView>
       _offset = clamped.toDouble();
     });
     _syncExpandAnimations();
+  }
+
+  /// 在 full-expand 行为为 close 时，对超过阈值后的继续拖动施加更大阻力。
+  /// Applies stronger drag resistance beyond threshold when full-expand behavior is close.
+  double _applyCloseResistanceIfNeeded({
+    required double baseOffset,
+    required double deltaDx,
+  }) {
+    if (deltaDx == 0) {
+      return baseOffset;
+    }
+    final proposed = baseOffset + deltaDx;
+
+    ///Leading: 向右继续拖动。
+    if (deltaDx > 0 &&
+        widget.leadingFullExpandable &&
+        (widget.leadingFullExpandBehavior == SlideableExpandBehavior.close ||
+            widget.leadingFullExpandBehavior == SlideableExpandBehavior.open) &&
+        _leadingActualTotalWidth > 0) {
+      final threshold = _leadingActualTotalWidth +
+          widget.leadingFullExpandExtra +
+          _closeResistanceStartExtra;
+      if (proposed > threshold) {
+        if (baseOffset >= threshold) {
+          return baseOffset + deltaDx * _closeResistanceFactor;
+        }
+        final beyond = proposed - threshold;
+        return threshold + beyond * _closeResistanceFactor;
+      }
+      return proposed;
+    }
+
+    ///Trailing: 向左继续拖动。
+    if (deltaDx < 0 &&
+        widget.trailingFullExpandable &&
+        (widget.trailingFullExpandBehavior == SlideableExpandBehavior.close ||
+            widget.trailingFullExpandBehavior ==
+                SlideableExpandBehavior.open) &&
+        _trailingActualTotalWidth > 0) {
+      final threshold = _trailingActualTotalWidth +
+          widget.trailingFullExpandExtra +
+          _closeResistanceStartExtra;
+      final absProposed = -proposed;
+      final absBase = -baseOffset;
+      if (absProposed > threshold) {
+        if (absBase >= threshold) {
+          return baseOffset + deltaDx * _closeResistanceFactor;
+        }
+        final beyond = absProposed - threshold;
+        return -(threshold + beyond * _closeResistanceFactor);
+      }
+      return proposed;
+    }
+
+    return proposed;
   }
 
   /// 手势结束阈值判定：
