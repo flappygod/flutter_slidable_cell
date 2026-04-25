@@ -1065,7 +1065,7 @@ class _SlideableCellViewState extends State<SlideableCellView>
   /// 判断两个 ValueKey 是否表示同一个业务 cell。
   /// Checks whether two ValueKeys represent the same business cell.
   bool _sameCellKey(ValueKey a, ValueKey b) {
-    return a.value == b.value;
+    return a == b;
   }
 
   /// 是否为 leading 边缘 item。
