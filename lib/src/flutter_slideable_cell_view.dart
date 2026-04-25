@@ -1,30 +1,46 @@
-import 'package:flutter/material.dart';
 import 'flutter_slideable_action_item.dart';
+import 'package:flutter/material.dart';
 import 'flutter_slideable_base.dart';
 
 /// 滑动 Cell 的控制器。
 /// Controller for opening/closing slidable cells by [ValueKey].
 class SlideableCellController {
   /// 当前的所有 entry。
-  /// All registered entries.
-  final Map<ValueKey, _SlideableCellControllerEntry> _entries =
-      <ValueKey, _SlideableCellControllerEntry>{};
+  /// All registered entries (supports duplicate keys).
+  final Map<ValueKey, List<_SlideableCellControllerEntry>> _entries =
+      <ValueKey, List<_SlideableCellControllerEntry>>{};
 
-  /// 当前的所有状态缓存。
-  /// All cached statuses.
-  final Map<ValueKey, SlideableCellStatus> _statusMap =
-      <ValueKey, SlideableCellStatus>{};
+  /// entry 级别状态缓存（支持同 key 多实例）。
+  /// Entry-level cached statuses.
+  final Map<_SlideableCellControllerEntry, SlideableCellStatus>
+      _entryStatusMap = <_SlideableCellControllerEntry, SlideableCellStatus>{};
 
-  /// 找到相应的 entry。
-  /// Finds the matching entry.
-  _SlideableCellControllerEntry? _findEntry(ValueKey key) {
-    return _entries[key];
+  /// 找到相应的 entries。
+  /// Finds matching entries.
+  List<_SlideableCellControllerEntry> _findEntry(ValueKey key) {
+    final List<_SlideableCellControllerEntry>? list = _entries[key];
+    if (list == null || list.isEmpty) {
+      return const <_SlideableCellControllerEntry>[];
+    }
+    return List<_SlideableCellControllerEntry>.from(list, growable: false);
   }
 
   /// 找到相应的状态。
   /// Finds the matching status.
   SlideableCellStatus _findStatus(ValueKey key) {
-    return _statusMap[key] ?? SlideableCellStatus.closed;
+    final List<_SlideableCellControllerEntry>? list = _entries[key];
+    if (list == null || list.isEmpty) {
+      return SlideableCellStatus.closed;
+    }
+    // 同 key 多实例时，只要任一实例处于打开状态，就视为打开。
+    for (final _SlideableCellControllerEntry entry in list.reversed) {
+      final SlideableCellStatus status =
+          _entryStatusMap[entry] ?? SlideableCellStatus.closed;
+      if (_isOpenedStatus(status)) {
+        return status;
+      }
+    }
+    return SlideableCellStatus.closed;
   }
 
   /// 注册一个可控制的 Cell 实例。
@@ -34,27 +50,45 @@ class SlideableCellController {
     _SlideableCellControllerEntry entry,
     SlideableCellStatus initialStatus,
   ) {
-    _entries[key] = entry;
-    _statusMap[key] = initialStatus;
+    final List<_SlideableCellControllerEntry> list =
+        _entries.putIfAbsent(key, () => <_SlideableCellControllerEntry>[]);
+    list.add(entry);
+    _entryStatusMap[entry] = initialStatus;
   }
 
   /// 仅在 entry 与当前注册项一致时移除，避免误删。
   /// Unregister only when the entry matches current mapping.
   void _unregister(ValueKey key, _SlideableCellControllerEntry entry) {
-    final current = _entries[key];
-    if (identical(current, entry)) {
+    final List<_SlideableCellControllerEntry>? list = _entries[key];
+    if (list == null || list.isEmpty) {
+      _entryStatusMap.remove(entry);
+      return;
+    }
+    list.removeWhere((e) => identical(e, entry));
+    _entryStatusMap.remove(entry);
+    if (list.isEmpty) {
       _entries.remove(key);
-      _statusMap.remove(key);
     }
   }
 
   /// 更新指定 key 对应 item 的状态缓存。
   /// Updates cached open/close status for an item key.
-  void _updateStatus(ValueKey key, SlideableCellStatus status) {
-    if (!_entries.containsKey(key)) {
+  void _updateStatus(
+    ValueKey key,
+    SlideableCellStatus status, [
+    _SlideableCellControllerEntry? entry,
+  ]) {
+    if (entry != null) {
+      // 指定 entry 时只更新该实例状态。
+      if (_entryStatusMap.containsKey(entry)) {
+        _entryStatusMap[entry] = status;
+      }
       return;
     }
-    _statusMap[key] = status;
+    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
+    if (entries.isNotEmpty) {
+      _entryStatusMap[entries.last] = status;
+    }
   }
 
   /// 获取指定 key 的当前状态，默认关闭。
@@ -74,7 +108,7 @@ class SlideableCellController {
   Map<ValueKey, SlideableCellStatus> get statuses {
     final Map<ValueKey, SlideableCellStatus> result = {};
     for (final key in _entries.keys) {
-      result[key] = _statusMap[key] ?? SlideableCellStatus.closed;
+      result[key] = _findStatus(key);
     }
     return Map<ValueKey, SlideableCellStatus>.unmodifiable(result);
   }
@@ -82,31 +116,65 @@ class SlideableCellController {
   /// 打开左方（普通宽度）。
   /// Opens leading side at normal width.
   Future<void> openLeading(ValueKey key) async {
-    await _findEntry(key)?.openLeading.call();
+    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
+    if (entries.isEmpty) {
+      return;
+    }
+    await Future.wait<void>(
+      entries.map((entry) => entry.openLeading()).toList(growable: false),
+    );
   }
 
   /// 打开右方（普通宽度）。
   /// Opens trailing side at normal width.
   Future<void> openTrailing(ValueKey key) async {
-    await _findEntry(key)?.openTrailing.call();
+    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
+    if (entries.isEmpty) {
+      return;
+    }
+    await Future.wait<void>(
+      entries.map((entry) => entry.openTrailing()).toList(growable: false),
+    );
   }
 
   /// 左侧完全展开（落到父容器宽度）。
   /// Fully expands the leading side to parent width.
   Future<void> openLeadingFullExpand(ValueKey key) async {
-    await _findEntry(key)?.openLeadingFullExpand.call();
+    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
+    if (entries.isEmpty) {
+      return;
+    }
+    await Future.wait<void>(
+      entries
+          .map((entry) => entry.openLeadingFullExpand())
+          .toList(growable: false),
+    );
   }
 
   /// 右侧完全展开（落到父容器宽度）。
   /// Fully expands the trailing side to parent width.
   Future<void> openTrailingFullExpand(ValueKey key) async {
-    await _findEntry(key)?.openTrailingFullExpand.call();
+    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
+    if (entries.isEmpty) {
+      return;
+    }
+    await Future.wait<void>(
+      entries
+          .map((entry) => entry.openTrailingFullExpand())
+          .toList(growable: false),
+    );
   }
 
   /// 关闭 Cell。
   /// Closes a cell.
   Future<void> closeCell(ValueKey key) async {
-    await _findEntry(key)?.close.call();
+    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
+    if (entries.isEmpty) {
+      return;
+    }
+    await Future.wait<void>(
+      entries.map((entry) => entry.close()).toList(growable: false),
+    );
   }
 
   /// 关闭所有的 item。
@@ -118,8 +186,10 @@ class SlideableCellController {
   /// so reading [statuses] / [statusOf] right after this call may still
   /// reflect the previous values until animations finish.
   Future<void> closeAllCells() async {
-    final futures =
-        _entries.values.map((entry) => entry.close()).toList(growable: false);
+    final futures = _entries.values
+        .expand((list) => list)
+        .map((entry) => entry.close())
+        .toList(growable: false);
     await Future.wait<void>(futures);
   }
 
@@ -866,7 +936,11 @@ class _SlideableCellViewState extends State<SlideableCellView>
 
     if (_status != nextStatus) {
       _status = nextStatus;
-      widget.controller._updateStatus(widget.cellKey, _status);
+      widget.controller._updateStatus(
+        widget.cellKey,
+        _status,
+        _controllerEntry,
+      );
     }
   }
 
@@ -882,13 +956,11 @@ class _SlideableCellViewState extends State<SlideableCellView>
     if (!mounted) {
       return;
     }
-
     _snapAnimationController.stop();
     _snapAnimationController.duration = widget.duration;
     _snapValueTween
       ..begin = _offset
       ..end = target;
-
     bool completed = false;
     try {
       await _snapAnimationController.forward(from: 0);
@@ -899,16 +971,13 @@ class _SlideableCellViewState extends State<SlideableCellView>
       // Skip finalization when interrupted by another _animateTo / dispose,
       // so that _offset is not forced to a target whose animation was canceled.
     }
-
     if (!mounted || !completed) {
       return;
     }
-
     setState(() {
       _offset = target;
     });
     _syncExpandAnimations();
-
     if (finalStatus != null) {
       _setStatus(finalStatus);
     } else {
@@ -990,19 +1059,13 @@ class _SlideableCellViewState extends State<SlideableCellView>
       return;
     }
     _status = status;
-    widget.controller._updateStatus(widget.cellKey, _status);
+    widget.controller._updateStatus(widget.cellKey, _status, _controllerEntry);
   }
 
   /// 判断两个 ValueKey 是否表示同一个业务 cell。
   /// Checks whether two ValueKeys represent the same business cell.
   bool _sameCellKey(ValueKey a, ValueKey b) {
     return a.value == b.value;
-  }
-
-  /// 是否为打开状态（含完全展开）。
-  /// Whether the status is opened (full-expanded counts as open).
-  bool _isOpenedStatus(SlideableCellStatus status) {
-    return status != SlideableCellStatus.closed;
   }
 
   /// 是否为 leading 边缘 item。
@@ -1060,16 +1123,12 @@ class _SlideableCellViewState extends State<SlideableCellView>
     final statusEntries =
         widget.controller.statuses.entries.toList(growable: false);
     final futures = <Future<void>>[];
-
     for (final entry in statusEntries) {
       final bool isCurrentCell = _sameCellKey(entry.key, widget.cellKey);
-      final bool isOpened = _isOpenedStatus(entry.value);
-
-      if (!isCurrentCell && isOpened) {
+      if (!isCurrentCell) {
         futures.add(widget.controller.closeCell(entry.key));
       }
     }
-
     await Future.wait(futures);
   }
 
@@ -1086,11 +1145,9 @@ class _SlideableCellViewState extends State<SlideableCellView>
     final leadingLimit = _maxDragDistance(_leadingActualTotalWidth);
     final trailingLimit = _maxDragDistance(_trailingActualTotalWidth);
     final clamped = next.clamp(-trailingLimit, leadingLimit);
-
     if (clamped == _offset) {
       return;
     }
-
     setState(() {
       _offset = clamped.toDouble();
     });
