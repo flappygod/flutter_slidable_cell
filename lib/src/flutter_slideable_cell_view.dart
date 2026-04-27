@@ -4,91 +4,164 @@ import 'flutter_slideable_base.dart';
 
 /// 滑动 Cell 的控制器。
 /// Controller for opening/closing slidable cells by [ValueKey].
+///
+/// 同一个 [ValueKey] 允许在短时间内对应多个 [SlideableCellView] 实例。
+/// 这主要用于兜住列表移动动画 / GlobalKey 迁移期间，新旧实例短暂共存导致
+/// 旧实例从 controller 映射中丢失的问题。关闭指定 key 时，会关闭该 key
+/// 下当前仍注册的所有实例。
+/// A [ValueKey] may temporarily map to multiple live [SlideableCellView]
+/// instances. This protects list move / GlobalKey migration windows where
+/// old and new instances can briefly coexist. Closing a key closes every
+/// currently registered instance under that key.
 class SlideableCellController {
-  /// 当前的所有 entry。
-  /// All registered entries (supports duplicate keys).
+  /// 当前注册的 entry，按 ValueKey 分组。
+  /// Live entries grouped by [ValueKey].
   final Map<ValueKey, List<_SlideableCellControllerEntry>> _entries =
       <ValueKey, List<_SlideableCellControllerEntry>>{};
 
-  /// entry 级别状态缓存（支持同 key 多实例）。
-  /// Entry-level cached statuses.
-  final Map<_SlideableCellControllerEntry, SlideableCellStatus>
-      _entryStatusMap = <_SlideableCellControllerEntry, SlideableCellStatus>{};
+  /// 每个 entry 自己的状态，用于在同 key 多实例共存时聚合状态。
+  /// Per-entry status used to aggregate duplicate-key entries.
+  final Map<ValueKey, Map<_SlideableCellControllerEntry, SlideableCellStatus>>
+      _entryStatusMap =
+      <ValueKey, Map<_SlideableCellControllerEntry, SlideableCellStatus>>{};
 
-  /// 找到相应的 entries。
-  /// Finds matching entries.
-  List<_SlideableCellControllerEntry> _findEntry(ValueKey key) {
-    final List<_SlideableCellControllerEntry>? list = _entries[key];
-    if (list == null || list.isEmpty) {
-      return const <_SlideableCellControllerEntry>[];
-    }
-    return List<_SlideableCellControllerEntry>.from(list, growable: false);
+  /// 状态缓存，按 ValueKey 唯一索引。
+  /// Status cache indexed by [ValueKey], aggregated from all entries of the key.
+  final Map<ValueKey, SlideableCellStatus> _statusMap =
+      <ValueKey, SlideableCellStatus>{};
+
+  /// 查找当前 key 对应的 entries 快照，未注册时返回空列表。
+  /// Returns a snapshot of live entries registered for [key].
+  List<_SlideableCellControllerEntry> _findEntries(ValueKey key) {
+    return List<_SlideableCellControllerEntry>.from(
+      _entries[key] ?? const <_SlideableCellControllerEntry>[],
+      growable: false,
+    );
   }
 
-  /// 找到相应的状态。
-  /// Finds the matching status.
+  /// 查找 key 对应的缓存状态，未注册时按关闭处理。
+  /// Returns cached status for [key], defaulting to [SlideableCellStatus.closed].
   SlideableCellStatus _findStatus(ValueKey key) {
-    final List<_SlideableCellControllerEntry>? list = _entries[key];
-    if (list == null || list.isEmpty) {
-      return SlideableCellStatus.closed;
-    }
-    // 同 key 多实例时，只要任一实例处于打开状态，就视为打开。
-    for (final _SlideableCellControllerEntry entry in list.reversed) {
-      final SlideableCellStatus status =
-          _entryStatusMap[entry] ?? SlideableCellStatus.closed;
-      if (_isOpenedStatus(status)) {
-        return status;
-      }
-    }
-    return SlideableCellStatus.closed;
+    return _statusMap[key] ?? SlideableCellStatus.closed;
   }
 
   /// 注册一个可控制的 Cell 实例。
-  /// Registers a cell entry for controller operations.
+  ///
+  /// 当同一个 [key] 已经被另一个 entry 占用时，会保留所有仍存活的 entry，
+  /// 避免旧实例还在屏幕上时被新实例覆盖后无法再被关闭。
+  ///
+  /// Registers a cell entry. Duplicate keys keep all live entries so an old
+  /// instance that is still visible can still receive later close commands.
   void _register(
     ValueKey key,
     _SlideableCellControllerEntry entry,
     SlideableCellStatus initialStatus,
   ) {
-    final List<_SlideableCellControllerEntry> list =
+    final List<_SlideableCellControllerEntry> entries =
         _entries.putIfAbsent(key, () => <_SlideableCellControllerEntry>[]);
-    list.add(entry);
-    _entryStatusMap[entry] = initialStatus;
+    if (!entries.any((item) => identical(item, entry))) {
+      if (entries.isNotEmpty) {
+        assert(() {
+          debugPrint(
+            '[SlideableCellController] 检测到重复的 ValueKey $key：'
+            '将临时保留多个实例以便统一关闭。',
+          );
+          return true;
+        }());
+      }
+      entries.add(entry);
+    }
+    final Map<_SlideableCellControllerEntry, SlideableCellStatus>
+        entryStatuses = _entryStatusMap.putIfAbsent(
+      key,
+      () => <_SlideableCellControllerEntry, SlideableCellStatus>{},
+    );
+    entryStatuses[entry] = initialStatus;
+    _recomputeStatus(key);
   }
 
-  /// 仅在 entry 与当前注册项一致时移除，避免误删。
-  /// Unregister only when the entry matches current mapping.
+  /// 仅移除指定 entry；同 key 的其他 entry 不受影响。
+  /// Removes only [entry], keeping other entries registered under the same key.
   void _unregister(ValueKey key, _SlideableCellControllerEntry entry) {
-    final List<_SlideableCellControllerEntry>? list = _entries[key];
-    if (list == null || list.isEmpty) {
-      _entryStatusMap.remove(entry);
+    final List<_SlideableCellControllerEntry>? entries = _entries[key];
+    if (entries == null) {
       return;
     }
-    list.removeWhere((e) => identical(e, entry));
-    _entryStatusMap.remove(entry);
-    if (list.isEmpty) {
+    entries.removeWhere((item) => identical(item, entry));
+    final Map<_SlideableCellControllerEntry, SlideableCellStatus>?
+        entryStatuses = _entryStatusMap[key];
+    entryStatuses?.remove(entry);
+    if (entries.isEmpty) {
       _entries.remove(key);
+      _entryStatusMap.remove(key);
+      _statusMap.remove(key);
+      return;
     }
+    if (entryStatuses == null || entryStatuses.isEmpty) {
+      _entryStatusMap.remove(key);
+      _statusMap[key] = SlideableCellStatus.closed;
+      return;
+    }
+    _recomputeStatus(key);
   }
 
   /// 更新指定 key 对应 item 的状态缓存。
-  /// Updates cached open/close status for an item key.
+  ///
+  /// 当传入 [entry] 时，只更新仍注册在该 key 下的 entry；未传入时按 key
+  /// 的聚合状态更新，保留旧调用语义。
+  /// Writes status cache for [key]. When [entry] is provided, only a currently
+  /// registered entry under that key may update its own status.
   void _updateStatus(
     ValueKey key,
     SlideableCellStatus status, [
     _SlideableCellControllerEntry? entry,
   ]) {
-    if (entry != null) {
-      // 指定 entry 时只更新该实例状态。
-      if (_entryStatusMap.containsKey(entry)) {
-        _entryStatusMap[entry] = status;
-      }
+    final List<_SlideableCellControllerEntry>? entries = _entries[key];
+    if (entries == null || entries.isEmpty) {
       return;
     }
-    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
-    if (entries.isNotEmpty) {
-      _entryStatusMap[entries.last] = status;
+    if (entry != null) {
+      final bool registered = entries.any((item) => identical(item, entry));
+      if (!registered) {
+        return;
+      }
+      final Map<_SlideableCellControllerEntry, SlideableCellStatus>
+          entryStatuses = _entryStatusMap.putIfAbsent(
+        key,
+        () => <_SlideableCellControllerEntry, SlideableCellStatus>{},
+      );
+      entryStatuses[entry] = status;
+      _recomputeStatus(key);
+      return;
     }
+    final Map<_SlideableCellControllerEntry, SlideableCellStatus>
+        entryStatuses = _entryStatusMap.putIfAbsent(
+      key,
+      () => <_SlideableCellControllerEntry, SlideableCellStatus>{},
+    );
+    for (final _SlideableCellControllerEntry registeredEntry in entries) {
+      entryStatuses[registeredEntry] = status;
+    }
+    _recomputeStatus(key);
+  }
+
+  /// 从同 key 的所有 entry 状态中聚合出对外状态。
+  /// Aggregates all entry statuses under [key] into the public key status.
+  void _recomputeStatus(ValueKey key) {
+    final Map<_SlideableCellControllerEntry, SlideableCellStatus>?
+        entryStatuses = _entryStatusMap[key];
+    if (entryStatuses == null || entryStatuses.isEmpty) {
+      _statusMap[key] = SlideableCellStatus.closed;
+      return;
+    }
+    SlideableCellStatus nextStatus = SlideableCellStatus.closed;
+    for (final SlideableCellStatus status in entryStatuses.values) {
+      if (_isOpenedStatus(status)) {
+        nextStatus = status;
+        break;
+      }
+    }
+    _statusMap[key] = nextStatus;
   }
 
   /// 获取指定 key 的当前状态，默认关闭。
@@ -106,75 +179,46 @@ class SlideableCellController {
   /// 全量状态快照（只读）。
   /// Read-only snapshot for all item statuses.
   Map<ValueKey, SlideableCellStatus> get statuses {
-    final Map<ValueKey, SlideableCellStatus> result = {};
-    for (final key in _entries.keys) {
-      result[key] = _findStatus(key);
-    }
-    return Map<ValueKey, SlideableCellStatus>.unmodifiable(result);
+    return Map<ValueKey, SlideableCellStatus>.unmodifiable(_statusMap);
   }
 
   /// 打开左方（普通宽度）。
   /// Opens leading side at normal width.
   Future<void> openLeading(ValueKey key) async {
-    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
-    if (entries.isEmpty) {
-      return;
-    }
-    await Future.wait<void>(
-      entries.map((entry) => entry.openLeading()).toList(growable: false),
-    );
+    final List<_SlideableCellControllerEntry> entries = _findEntries(key);
+    await Future.wait<void>(entries.map((entry) => entry.openLeading()));
   }
 
   /// 打开右方（普通宽度）。
   /// Opens trailing side at normal width.
   Future<void> openTrailing(ValueKey key) async {
-    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
-    if (entries.isEmpty) {
-      return;
-    }
-    await Future.wait<void>(
-      entries.map((entry) => entry.openTrailing()).toList(growable: false),
-    );
+    final List<_SlideableCellControllerEntry> entries = _findEntries(key);
+    await Future.wait<void>(entries.map((entry) => entry.openTrailing()));
   }
 
   /// 左侧完全展开（落到父容器宽度）。
   /// Fully expands the leading side to parent width.
   Future<void> openLeadingFullExpand(ValueKey key) async {
-    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
-    if (entries.isEmpty) {
-      return;
-    }
+    final List<_SlideableCellControllerEntry> entries = _findEntries(key);
     await Future.wait<void>(
-      entries
-          .map((entry) => entry.openLeadingFullExpand())
-          .toList(growable: false),
+      entries.map((entry) => entry.openLeadingFullExpand()),
     );
   }
 
   /// 右侧完全展开（落到父容器宽度）。
   /// Fully expands the trailing side to parent width.
   Future<void> openTrailingFullExpand(ValueKey key) async {
-    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
-    if (entries.isEmpty) {
-      return;
-    }
+    final List<_SlideableCellControllerEntry> entries = _findEntries(key);
     await Future.wait<void>(
-      entries
-          .map((entry) => entry.openTrailingFullExpand())
-          .toList(growable: false),
+      entries.map((entry) => entry.openTrailingFullExpand()),
     );
   }
 
   /// 关闭 Cell。
   /// Closes a cell.
   Future<void> closeCell(ValueKey key) async {
-    final List<_SlideableCellControllerEntry> entries = _findEntry(key);
-    if (entries.isEmpty) {
-      return;
-    }
-    await Future.wait<void>(
-      entries.map((entry) => entry.close()).toList(growable: false),
-    );
+    final List<_SlideableCellControllerEntry> entries = _findEntries(key);
+    await Future.wait<void>(entries.map((entry) => entry.close()));
   }
 
   /// 关闭所有的 item。
@@ -187,7 +231,7 @@ class SlideableCellController {
   /// reflect the previous values until animations finish.
   Future<void> closeAllCells() async {
     final futures = _entries.values
-        .expand((list) => list)
+        .expand((entries) => entries)
         .map((entry) => entry.close())
         .toList(growable: false);
     await Future.wait<void>(futures);
@@ -1956,11 +2000,6 @@ class _SlideableCellViewState extends State<SlideableCellView>
   /// 构建前景 child，并绑定水平拖动手势。
   /// Builds foreground child with horizontal drag gestures.
   Widget _buildChild() {
-    // 完全关闭时省略 Transform，避免引入额外的渲染层。
-    // Skip Transform when fully closed to avoid an extra layer.
-    if (_offset == 0) {
-      return widget.child;
-    }
     return Transform.translate(
       offset: Offset(_offset, 0),
       child: widget.child,
